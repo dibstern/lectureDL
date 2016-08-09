@@ -111,7 +111,7 @@ while user_dates_input == "default":
 	dates_list = []
 	if user_dates_input == "":
 		# if left blank, download all videos
-		dates_list = [start_week0 + datetime.timedelta(n) for n in range(int((datetime.datetime.today() - start_week0).days))]
+		dates_list = [start_week0 + datetime.timedelta(n) for n in range(int((datetime.datetime.today() - start_week0).days + 1))]
 	elif "," in user_dates_input or user_dates_input.isdigit():
 		# if user enters comma-separated weeks, or just one, make a list for each and then concatenate
 		print("Lectures will be downloaded for: ")
