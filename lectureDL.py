@@ -140,6 +140,7 @@ while user_dates_input == "default":
 		 + " and " + datetime.datetime.strftime(end_date, "%d %B"))
 	else:
 		print("That wasn't an option")
+		user_dates_input = "default"
 
 # startup chrome instance
 print("Starting up Chrome instance")
