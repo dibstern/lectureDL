@@ -26,6 +26,23 @@ from datetime import timedelta
 import urllib
 import os.path
 from os.path import expanduser
+from getpass import getpass
+from sys import stderr
+
+# Progress bar code from here:
+# https://stackoverflow.com/questions/13881092/download-progressbar-for-python-3
+# This code is used in the urlretrieve call.
+def reporthook(blocknum, blocksize, totalsize):
+    readsofar = blocknum * blocksize
+    if totalsize > 0:
+        percent = readsofar * 1e2 / totalsize
+        s = "\r%5.1f%% %*d / %d bytes" % (
+            percent, len(str(totalsize)), readsofar, totalsize)
+        stderr.write(s)
+        if readsofar >= totalsize: # near the end
+            stderr.write("\n")
+    else: # total size is unknown
+        stderr.write("read %d\n" % (readsofar,))
 
 # define function to find a link and return the one it finds
 # works by making a list of the elements and sorts by descending list length,
@@ -153,12 +170,15 @@ user_field = driver.find_element_by_css_selector("input[name=user_id]")
 input_user = input("Enter your username: ")
 user_field.send_keys(input_user)
 pass_field = driver.find_element_by_css_selector("input[name=password]")
-input_pass = input("Enter your password: ")
+input_pass = getpass("Enter your password: ")
 pass_field.send_keys(input_pass)
 # clear screen to hide password
 print("\n" * 100)
 pass_field.send_keys(Keys.RETURN)
 time.sleep(5)
+
+# print status
+print("Building list of subjects")
 
 # list items in list class "courseListing"
 course_list = driver.find_element_by_css_selector("ul.courseListing")
@@ -167,8 +187,6 @@ course_links = course_list.find_elements_by_css_selector('a[target=_top]')
 # list to be appended with [subj_code, subj_name, subj_link]
 subject_list = [] 
 subj_num = 1
-# print status
-print("Building list of subjects")
 
 # get subject info from list of 'a' elements
 for link in course_links:
@@ -229,7 +247,7 @@ for subj in user_subjects:
 	
 	# go to subject page and find Lecture Recordings page
 	driver.get(subj[2])
-	recs_page = search_link_text(driver, ["Recordings", "recordings", "Capture"])
+	recs_page = search_link_text(driver, ["Recordings", "recordings", "Capture", "capture"])
 	
 	# if no recordings page found, skip to next subject
 	if recs_page is None:
@@ -366,7 +384,7 @@ for subj in user_subjects:
 		
 		# download file using urllib.request.urlretrieve
 		print("Downloading to ", link[6])
-		urllib.request.urlretrieve(dl_link, link[6])
+		urllib.request.urlretrieve(dl_link, link[6], reporthook)
 		print("Completed! Going to next file!")
 		downloaded_lectures.append(link)
 		time.sleep(2)
