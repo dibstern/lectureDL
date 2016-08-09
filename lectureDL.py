@@ -28,6 +28,7 @@ import os.path
 from os.path import expanduser
 from getpass import getpass
 from sys import stderr
+from os import stat
 
 # Progress bar code from here:
 # https://stackoverflow.com/questions/13881092/download-progressbar-for-python-3
@@ -274,8 +275,15 @@ for subj in user_subjects:
 	driver.switch_to_frame(iframe3)
 	
 	# find ul element, list of recordings
-	recs_ul = driver.find_element_by_css_selector("ul#echoes-list")
-	recs_list = recs_ul.find_elements_by_css_selector("li.li-echoes")
+	pageLoaded = False
+	while pageLoaded == False:
+		try:
+			recs_ul = driver.find_element_by_css_selector("ul#echoes-list")
+			recs_list = recs_ul.find_elements_by_css_selector("li.li-echoes")
+			pageLoaded = True
+		except:
+			print("Slow connection, waiting for echocenter to load...")
+			time.sleep(3)
 	
 	# setup for recordings
 	subject_code = subj[0]
@@ -339,8 +347,47 @@ for subj in user_subjects:
 		
 	# only add lectures to be downloaded if they are inside date range. else, skip them
 	for item in lectures_list:
+		# Append to download list if the file in date range and doesn't exist yet.
 		if item[4] in dates_list and not os.path.isfile(item[6]):
 			to_download.append(item)
+
+		# If the file is in the range but does exist, check that the file is completely
+		# downloaded. If not, we will add it to the download list and overwrite the 
+		# local incomplete version.
+		elif item[4] in dates_list and os.path.isfile(item[6]):
+			driver.get(item[0])
+			time.sleep(1)
+			dl_link = driver.find_element_by_partial_link_text("Download media file.").get_attribute("href")
+			# send javascript to stop download redirect
+			driver.execute_script('stopCounting=true')
+
+			# Check size of file on server. If the server version is larger than the local version, 
+			# we notify the user of an incomplete file (perhaps the connection dropped or the user 
+			# cancelled the download). We tell them we're going to download it again.
+			# Using wget we could resume the download, but python urllib doesn't have such functionality.
+			try:	
+				f = urllib.request.urlopen(dl_link)
+				# This is the size of the file on the server in bytes.
+				sizeWeb = int(f.headers["Content-Length"])
+			except:
+				# Catching the situation where the server doesn't advertise the file length.
+				sizeWeb = 0
+
+			# Get size of file on disk.
+			statinfo = stat(item[6])
+			sizeLocal = statinfo.st_size
+
+			# Add to download list with note that it was incomplete.
+			if sizeWeb > sizeLocal:
+				item.append("- Incomplete file ({0:.1f}/{0:.1f} kb). Will download again.".format(sizeLocal/1000, sizeWeb/1000))
+				to_download.append(item)
+			# Otherwise the file must be fully downloaded.
+			else:
+				item.append("File already exists on disk (fully downloaded).")
+				skipped_lectures.append(item)
+				print("Skipping " + item[5] + ": " + item[7])
+
+		# Dealing with other cases.
 		else:
 			# if both outside date range and already exists
 			if not item[4] in dates_list and os.path.isfile(item[6]):
@@ -348,7 +395,7 @@ for subj in user_subjects:
 			# if just outside date range
 			elif not item[4] in dates_list:
 				item.append("Outside date range")
-			# if just already exists
+			# If file already exists and is fully completed. Shouldn't really get to this case (caught above).
 			elif os.path.isfile(item[6]):
 				item.append("File already exists")
 			skipped_lectures.append(item)
@@ -358,7 +405,12 @@ for subj in user_subjects:
 	if len(to_download) > 0:
 		print("Lectures to be downloaded:")
 		for item in to_download:
-			print(item[5])
+			# Print with additional note if it's there.
+			try:
+				print(item[5], item[7])
+			# Otherwise just print the lecture name.
+			except IndexError:
+				print(item[5])
 	else:
 		print("No lectures to be downloaded.")
 	
@@ -372,16 +424,8 @@ for subj in user_subjects:
 		time.sleep(1)
 		dl_link = driver.find_element_by_partial_link_text("Download media file.").get_attribute("href")
 		# send javascript to stop download redirect
-		driver.execute_script('stopCounting=true') 
-			
-		# add file extension and build full download path
-			
-		 # check if file already exists
-		if os.path.isfile(link[6]):
-			print("File already exists. Skipping!")
-			skipped_lectures.append(link)
-			continue
-		
+		driver.execute_script('stopCounting=true')
+
 		# download file using urllib.request.urlretrieve
 		print("Downloading to ", link[6])
 		urllib.request.urlretrieve(dl_link, link[6], reporthook)
