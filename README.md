@@ -1,4 +1,24 @@
 # lectureDL
+
+## Differences in this fork from original
+First, huge praise to @larryhudson for a super handy script. Many of my changes here are preference based, this fork mainly serves as a place for me to fiddle with the script :) Anyway, here's a list of most of the changes:
+
+- A progress indicator for each download.
+- Hide the password while the user enters it.
+- Detect when a download isn't fully completed, and if so download it again.
+- Make sure echocenter and the list of subjects are fully loaded (on my slow slow slow connection the script would jump the gun on this). This is done by catching the exception for when a css element isn't found. Makes the already great script even more robust.
+- Make the weeks print 01 instead of 1.
+- Facilitate automated running of the script with variables modifiable at the top of the file.
+- Changed download location to be subject specific. Meaning for a COMP30020 lecture, the script will download it to COMP30020/lectures/lecture name.m4v. This is of course purely a taste based thing.
+
+The whole thing was pretty perfect from the start, so my list of possible improvements here will be short:
+
+- Enable resuming of partial downloads. This is hard to do in Python alone, using pycurl or perhaps wget could help with this.
+- Restructure the code into functions for each abstract task and then have a main which calls these. Would be nice for readability and maintainability's sake.
+- Way down the line it would be nice to have a way for it to handle future semesters that don't involve hardcoding date values. Problem for another time!
+
+Again, enormous thanks to @larryhudson for making that something that everybody's always wanted, and for it being so easy to use!
+
 ## Setup:
 lectureDL is written in [Python 3](http://python.org/downloads) and uses the [Selenium library](http://selenium-python.readthedocs.io) coupled with [ChromeDriver](https://sites.google.com/a/chromium.org/chromedriver/).
 
@@ -20,7 +40,7 @@ Note: I'd recommend hiding subjects that are not active this semester because th
 * For each lecture, builds filename based on subject number and date and downloads
 
 ## Features:
-* Assigns week numbers based on date and appends lecture numbers if there are more than one lecture per week - formatted eg. "LING30001 Week 1 Lecture 2.m4v"
+* Assigns week numbers based on date and appends lecture numbers if there are more than one lecture per week - formatted eg. "LING30001 Week 1 Lecture 02.m4v"
 * Skips if file already exists
 * Can download either video files or audio files
 * Allows user to choose specific subjects and to only download lectures for specific weeks
@@ -28,5 +48,3 @@ Note: I'd recommend hiding subjects that are not active this semester because th
 ## To do list:
 * Allow user to choose download folder
 * Replace list system (eg. to_download) with class and attributes?
-* Change Week numbering from Week 1 to Week 01 so they stay in order after Week 10
-* Scroll down JavaScript list of lecture recordings - otherwise might have 'element not visible' error when trying to click
