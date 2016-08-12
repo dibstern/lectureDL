@@ -20,6 +20,7 @@
 
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
+from selenium.common.exceptions import NoSuchElementException
 import time
 import datetime
 from datetime import timedelta
@@ -29,6 +30,58 @@ from os.path import expanduser
 from getpass import getpass
 from sys import stderr
 from os import stat
+from os import environ
+from os import listdir
+from sys import exit
+from sys import argv
+
+"""
+These can be set to run the program automatically. Below are examples:
+
+input_user = "porteousd"
+# Save password in environment variable.
+input_pass = environ["UNIMELBPASS"]
+subjectChoices = "3,4,5"
+mediaType = "v"
+dateRange = "" # Means all dates. Note that Larry has coded "all" to mean only for this semester.
+
+In future it could be coded to read in a config file with this stuff quite easily.
+To have the program ask you these instead, leave these values as None.
+"""
+
+# Set any of these to None to use default functionality (asking the user each time).
+input_user = None
+input_pass = None
+subjectChoices = None
+mediaType = None
+dateRange = None # Means all dates. Note that Larry has coded "all" to mean only for this semester.
+
+# Setup download folders
+home_dir = expanduser("~")
+video_folder = os.path.join(home_dir, "Dropbox/uni2016")
+audio_folder = video_folder
+lectureFolderName = "lectures"
+
+# If they don't exist, make them
+if not os.path.exists(video_folder):
+	os.makedirs(video_folder)
+if not os.path.exists(audio_folder):
+	os.makedirs(audio_folder)
+
+def getSubjectFolder(fname):
+	subjectCode = fname.split()[0].lower()
+
+	# Using the subject code to find the appropriate folder.
+	for i in listdir(video_folder):
+		if subjectCode in i or subjectCode.upper() in i:
+			subjectFolder = i
+			break
+
+	try:
+		return subjectFolder
+	except NameError:
+		print("There is a name mismatch between the subjects list and the folder names.")
+		exit(-1)
 
 # Progress bar code from here:
 # https://stackoverflow.com/questions/13881092/download-progressbar-for-python-3
@@ -59,17 +112,6 @@ def search_link_text(parent, string_list):
 	else:
 		return sorted_list[0][0]
 
-# setup download folders
-home_dir = expanduser("~")
-video_folder = os.path.join(home_dir, "Downloads/lectureDL/Lecture videos")
-audio_folder = os.path.join(home_dir, "Downloads/lectureDL/Lecture audio")
-
-# if they don't exist, make them
-if not os.path.exists(video_folder):
-	os.makedirs(video_folder)
-if not os.path.exists(audio_folder):
-	os.makedirs(audio_folder)
-
 # build week number dictionary
 current_date = datetime.datetime(2016, 7, 25)
 start_week0 = datetime.datetime(2016, 7, 18)
@@ -95,12 +137,16 @@ user_dates_input = "default"
 skipped_lectures = []
 downloaded_lectures = []
 
-print("Welcome to lectureDL.py")
+print("Welcome to", argv[0])
 
 # set download mode
 while download_mode == "default":
 	print("Enter 'v' to download videos or 'a' to download audio")
-	user_choice = input("> ")
+	if mediaType is None:
+		user_choice = input("> ")
+	else:
+		print("Using " + mediaType)
+		user_choice = mediaType
 	if user_choice == "a":
 		download_mode = "audio"
 	elif user_choice == "v":
@@ -124,8 +170,15 @@ user_dates_input
 # if user enters comma-separated weeks, make a list for each and then concatenate
 print("Would you like to download lectures from specific weeks or since a particular date?")
 while user_dates_input == "default":
-	print("Enter a range of weeks (eg. 1-5 or 1,3,4) or a date (DD/MM/2016) to download videos that have since been released.")
-	user_dates_input = input("> ")
+	if dateRange is None:
+		print("Enter a range of weeks (eg. 1-5 or 1,3,4) or a date (DD/MM/2016) to download videos that have since been released.")
+		user_dates_input = input("> ")
+	else:
+		if len(dateRange) > 0: 
+			print("Using", dateRange)
+		else:
+			print("Downloading all.")
+		user_dates_input = dateRange
 	dates_list = []
 	if user_dates_input == "":
 		# if left blank, download all videos
@@ -168,46 +221,61 @@ driver = webdriver.Chrome("ChromeDriver/chromedriver")
 print("Starting login process")
 driver.get("http://app.lms.unimelb.edu.au")
 user_field = driver.find_element_by_css_selector("input[name=user_id]")
-input_user = input("Enter your username: ")
+if input_user is None:
+	input_user = input("Enter your username: ")
 user_field.send_keys(input_user)
 pass_field = driver.find_element_by_css_selector("input[name=password]")
-input_pass = getpass("Enter your password: ")
+if input_pass is None:
+	input_pass = getpass("Enter your password: ")
 pass_field.send_keys(input_pass)
 # clear screen to hide password
 print("\n" * 100)
 pass_field.send_keys(Keys.RETURN)
-time.sleep(5)
 
-# print status
+def getSubjectList():
+	# list items in list class "courseListing"
+	try:
+		course_list = driver.find_element_by_css_selector("ul.courseListing")
+		# only get links with target="_top" to single out subject headings
+		course_links = course_list.find_elements_by_css_selector('a[target=_top]')
+		# list to be appended with [subj_code, subj_name, subj_link]
+	except NoSuchElementException:
+		# This section must not have loaded yet.
+		return [], 0
+
+	subject_list = [] 
+	subj_num = 1
+
+	# get subject info from list of 'a' elements
+	for link in course_links:
+		# get title eg "LING30001_2016_SM2: Exploring Linguistic Diversity"
+		full_string = link.text
+		# split at ": " to separate subj_code and subj_name
+		middle_split = full_string.split(": ")
+		# subj_code == LING30001_2016_SM2, split at "_", string[0]
+		subj_code = middle_split[0].split("_")[0]
+		# subj_name == Exploring Linguistic Diversity, string[1]
+		# join/split method is to account for subjects such as "International Relations: Key Questions"
+		subj_name = ": ".join(middle_split[1:])
+		# get subject link
+		subj_link = link.get_attribute("href")
+		
+		# set default for checking against user-specified subjects
+		skip_subj = False
+		subject_list.append([subj_code, subj_name, subj_link, subj_num])
+		
+		subj_num += 1
+
+	return subject_list, len(subject_list)
+
 print("Building list of subjects")
+# Making sure the subjet list has loaded. It will only equal 1 if not (for biomed in my case).
+subject_list, numSubjects = getSubjectList()
+while numSubjects <= 1:
+	subject_list, numSubjects = getSubjectList()
+	print("Waiting for subject list to load in LMS...")
+	time.sleep(2)
 
-# list items in list class "courseListing"
-course_list = driver.find_element_by_css_selector("ul.courseListing")
-# only get links with target="_top" to single out subject headings
-course_links = course_list.find_elements_by_css_selector('a[target=_top]')
-# list to be appended with [subj_code, subj_name, subj_link]
-subject_list = [] 
-subj_num = 1
-
-# get subject info from list of 'a' elements
-for link in course_links:
-	# get title eg "LING30001_2016_SM2: Exploring Linguistic Diversity"
-	full_string = link.text
-	# split at ": " to separate subj_code and subj_name
-	middle_split = full_string.split(": ")
-	# subj_code == LING30001_2016_SM2, split at "_", string[0]
-	subj_code = middle_split[0].split("_")[0]
-	# subj_name == Exploring Linguistic Diversity, string[1]
-	# join/split method is to account for subjects such as "International Relations: Key Questions"
-	subj_name = ": ".join(middle_split[1:])
-	# get subject link
-	subj_link = link.get_attribute("href")
-	
-	# set default for checking against user-specified subjects
-	skip_subj = False
-	subject_list.append([subj_code, subj_name, subj_link, subj_num])
-	
-	subj_num += 1
 
 # print subjects to download
 print("Subject list:")
@@ -221,7 +289,11 @@ skipped_subjects = []
 
 # choose subjects from list
 print("Please enter subjects you would like to download (eg. 1,2,3) or leave blank to download all ")
-user_choice = input("> ")
+if subjectChoices is None:
+	user_choice = input("> ")
+else:
+	print("Using " + subjectChoices)
+	user_choice = subjectChoices
 
 # for each chosen subj number, check if it is subj_num in subject list, if not skip it, if yes add it to subjects to be downloaded
 if not user_choice == "":
@@ -281,7 +353,7 @@ for subj in user_subjects:
 			recs_ul = driver.find_element_by_css_selector("ul#echoes-list")
 			recs_list = recs_ul.find_elements_by_css_selector("li.li-echoes")
 			pageLoaded = True
-		except:
+		except NoSuchElementException:
 			print("Slow connection, waiting for echocenter to load...")
 			time.sleep(3)
 	
@@ -333,15 +405,17 @@ for subj in user_subjects:
 	# assign filenames
 	# made it a separate loop because in the loop above it's constantly updating earlier values etc
 	for item in lectures_list:
-		filename = item[1] + " Week " + str(item[2]) + " Lecture"
+		filename = item[1] + " Week " + str(item[2]).zfill(2) + " Lecture"
+		# Getting the subject folder in which to put the lecture.
+		subjectFolder = getSubjectFolder(item[1]) # Item 1 is subject_code.
 		if multiple_lectures == True:
 			filename = filename + " " + str(item[3])
 		if download_mode == "audio":
 			filename_with_ext = filename + ".mp3"
-			file_path = os.path.join(audio_folder, filename_with_ext)
+			file_path = os.path.join(audio_folder, subjectFolder, lectureFolderName, filename_with_ext)
 		else:
 			filename_with_ext = filename + ".m4v"
-			file_path = os.path.join(video_folder, filename_with_ext)
+			file_path = os.path.join(video_folder, subjectFolder, lectureFolderName, filename_with_ext)
 		item.append(filename)
 		item.append(file_path)
 		
@@ -426,7 +500,6 @@ for subj in user_subjects:
 		# send javascript to stop download redirect
 		driver.execute_script('stopCounting=true')
 
-		# download file using urllib.request.urlretrieve
 		print("Downloading to ", link[6])
 		urllib.request.urlretrieve(dl_link, link[6], reporthook)
 		print("Completed! Going to next file!")
@@ -457,3 +530,5 @@ if len(skipped_lectures) > 0:
 		print("Skipped " + str(len(skipped_lectures)) + " lectures:")
 	for item in skipped_lectures:
 		print(item[5] + ": " + item[7])
+
+driver.quit()
