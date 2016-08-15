@@ -49,12 +49,21 @@ In future it could be coded to read in a config file with this stuff quite easil
 To have the program ask you these instead, leave these values as None.
 """
 
+
 # Set any of these to None to use default functionality (asking the user each time).
 input_user = None
 input_pass = None
 subjectChoices = None
 mediaType = None
 dateRange = None # Means all dates. Note that Larry has coded "all" to mean only for this semester.
+
+# My defaults:
+input_user = "porteousd"
+# Save password in environment variable.
+input_pass = environ["UNIMELBPASS"]
+subjectChoices = "3,4,5"
+mediaType = "v"
+dateRange = "" # Means all dates. Note that Larry has coded "all" to mean only for this semester.
 
 # Setup download folders
 home_dir = expanduser("~")
