@@ -20,7 +20,7 @@
 
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
-from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import NoSuchElementException, ElementNotVisibleException
 import time
 import datetime
 from datetime import timedelta
@@ -34,6 +34,7 @@ from os import environ
 from os import listdir
 from sys import exit
 from sys import argv
+from sys import platform
 
 """
 These can be set to run the program automatically. Below are examples:
@@ -61,9 +62,10 @@ dateRange = None # Means all dates. Note that Larry has coded "all" to mean only
 input_user = "porteousd"
 # Save password in environment variable.
 input_pass = environ["UNIMELBPASS"]
-subjectChoices = "3,4,5"
+subjectChoices = ""
 mediaType = "v"
 dateRange = "" # Means all dates. Note that Larry has coded "all" to mean only for this semester.
+
 
 # Setup download folders
 home_dir = expanduser("~")
@@ -224,7 +226,7 @@ while user_dates_input == "default":
 
 # startup chrome instance
 print("Starting up Chrome instance")
-driver = webdriver.Chrome("ChromeDriver/chromedriver")
+driver = webdriver.Chrome("ChromeDriver/chromedriver2")
 
 # login process
 print("Starting login process")
@@ -278,9 +280,11 @@ def getSubjectList():
 	return subject_list, len(subject_list)
 
 print("Building list of subjects")
+driver.refresh()
 # Making sure the subjet list has loaded. It will only equal 1 if not (for biomed in my case).
 subject_list, numSubjects = getSubjectList()
-while numSubjects <= 1:
+# TODO think of a better way to select the lecture stuff and not the community stuff on the right.
+while numSubjects <= 2:
 	subject_list, numSubjects = getSubjectList()
 	print("Waiting for subject list to load in LMS...")
 	time.sleep(2)
@@ -329,7 +333,7 @@ for subj in user_subjects:
 	
 	# go to subject page and find Lecture Recordings page
 	driver.get(subj[2])
-	recs_page = search_link_text(driver, ["Recordings", "recordings", "Capture", "capture"])
+	recs_page = search_link_text(driver, ["Lecture capture", "Recordings", "recordings", "Capture", "capture"])
 	
 	# if no recordings page found, skip to next subject
 	if recs_page is None:
@@ -380,8 +384,19 @@ for subj in user_subjects:
 	for item in recs_list:
 		# click on each recording to get different download links
 		date_div = item.find_element_by_css_selector("div.echo-date")
-		date_div.click()
-		time.sleep(2)
+		
+		# Deals with error where the next element can't be selected if it isn't literally visible.
+		# Weird behaviour, but the solution is to catch the error and tab downwards.
+		try:
+			date_div.click()
+		except ElementNotVisibleException:
+			actions = webdriver.ActionChains(driver)
+			actions.move_to_element(date_div);
+			actions.click()
+			actions.send_keys(Keys.SPACE)
+			actions.perform()
+
+		#time.sleep(2)
 		
 		# convert string into datetime.datetime object
 		# date is formatted like "August 02 3:20 PM" but I want "August 02 2016"
@@ -394,10 +409,16 @@ for subj in user_subjects:
 		lec_num = 1
 		
 		# get link to initial download page for either audio or video
-		if download_mode == "audio":
-			first_link = driver.find_element_by_partial_link_text("Audio File").get_attribute("href")
-		else:
-			first_link = driver.find_element_by_partial_link_text("Video File").get_attribute("href")
+		while True:
+			try:
+				if download_mode == "audio":
+					first_link = driver.find_element_by_partial_link_text("Audio File").get_attribute("href")
+				else:
+					first_link = driver.find_element_by_partial_link_text("Video File").get_attribute("href")
+				break
+			except NoSuchElementException:
+				time.sleep(0.5)
+				pass
 			
 		# check if week_num is already in to_download
 		for sublist in lectures_list:
@@ -409,7 +430,7 @@ for subj in user_subjects:
 				
 		# add info to download list
 		lectures_list.append([first_link, subject_code, week_num, lec_num, date])
-		time.sleep(1)
+		#time.sleep(1)
 	
 	# assign filenames
 	# made it a separate loop because in the loop above it's constantly updating earlier values etc
