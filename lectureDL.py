@@ -58,6 +58,7 @@ subjectChoices = None
 mediaType = None
 dateRange = None # Means all dates. Note that Larry has coded "all" to mean only for this semester.
 
+
 # My defaults:
 input_user = "porteousd"
 # Save password in environment variable.
@@ -440,12 +441,20 @@ for subj in user_subjects:
 		subjectFolder = getSubjectFolder(item[1]) # Item 1 is subject_code.
 		if multiple_lectures == True:
 			filename = filename + " " + str(item[3])
+
 		if download_mode == "audio":
 			filename_with_ext = filename + ".mp3"
-			file_path = os.path.join(audio_folder, subjectFolder, lectureFolderName, filename_with_ext)
+			folder = audio_folder
 		else:
 			filename_with_ext = filename + ".m4v"
-			file_path = os.path.join(video_folder, subjectFolder, lectureFolderName, filename_with_ext)
+			folder = video_folder
+		
+		file_path = os.path.join(folder, subjectFolder, lectureFolderName, filename_with_ext)
+
+		if not os.path.isdir(os.path.join(folder, subjectFolder, lectureFolderName)):
+			print("Making {} folder for {}".format(lectureFolderName, folder))
+			os.makedirs(os.path.join(folder, subjectFolder, lectureFolderName))
+
 		item.append(filename)
 		item.append(file_path)
 		
