@@ -11,10 +11,10 @@ First, huge praise to @larryhudson for a super handy script. Many of my changes 
 - Facilitates automated running of the script with variables modifiable at the top of the file.
 - Changes download location to be subject specific. Meaning for a COMP30020 lecture, the script will download it to COMP30020/lectures/lecture name.m4v. This is of course purely a taste based thing.
 - Fixes a few bugs by introducing more duck typing. This led to improvements like automatic scrolling when the list of lectures was too long as well as gathering download links significantly faster.
+- Added support for partial downloads. Should hopefully be cross platform since I didn't end up using any external libraries.
 
 The whole thing was pretty perfect from the start, so my list of possible improvements here will be short:
 
-- Enable resuming of partial downloads. This is hard to do in Python alone, using pycurl or perhaps wget could help with this.
 - Restructure the code into functions for each abstract task and then have a main which calls these. Would be nice for readability and maintainability's sake.
 - Way down the line it would be nice to have a way for it to handle future semesters that don't involve hardcoding date values. Problem for another time!
 

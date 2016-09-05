@@ -26,8 +26,6 @@ import datetime
 from datetime import timedelta
 import urllib
 import os.path
-from os.path import expanduser
-from getpass import getpass
 from sys import stderr
 from os import stat
 from os import environ
@@ -69,7 +67,7 @@ dateRange = "" # Means all dates. Note that Larry has coded "all" to mean only f
 
 
 # Setup download folders
-home_dir = expanduser("~")
+home_dir = os.path.expanduser("~")
 video_folder = os.path.join(home_dir, "Dropbox/uni2016")
 audio_folder = video_folder
 lectureFolderName = "lectures"
@@ -123,6 +121,19 @@ def search_link_text(parent, string_list):
 		return None
 	else:
 		return sorted_list[0][0]
+
+def show_progress(filehook, localSize, webSize, chunk_size=1024):
+    fh = filehook
+    total_size = webSize
+    total_read = localSize
+    while True:
+        chunk = fh.read(chunk_size)
+        if not chunk: 
+            fh.close()
+            break
+        total_read += len(chunk)
+        print("Progress: %0.1f%%" % (total_read*100.0/total_size), end="\r")
+        yield chunk
 
 # build week number dictionary
 current_date = datetime.datetime(2016, 7, 25)
@@ -238,7 +249,7 @@ if input_user is None:
 user_field.send_keys(input_user)
 pass_field = driver.find_element_by_css_selector("input[name=password]")
 if input_pass is None:
-	input_pass = getpass("Enter your password: ")
+	input_pass = os.path.getpass("Enter your password: ")
 pass_field.send_keys(input_pass)
 # clear screen to hide password
 print("\n" * 100)
@@ -302,7 +313,7 @@ user_subjects = []
 skipped_subjects = []
 
 # choose subjects from list
-print("Please enter subjects you would like to download (eg. 1,2,3) or leave blank to download all ")
+print("Please enter subjects you would like to download (eg. 1,2,3) or leave blank to download all.")
 if subjectChoices is None:
 	user_choice = input("> ")
 else:
@@ -330,7 +341,7 @@ for item in user_subjects:
 # for each subject, navigate through site and download lectures
 for subj in user_subjects:
 	# print status
-	print("Now working on " + subj[0] + ": " + subj[1])
+	print("\nNow working on " + subj[0] + ": " + subj[1])
 	
 	# go to subject page and find Lecture Recordings page
 	driver.get(subj[2])
@@ -378,7 +389,7 @@ for subj in user_subjects:
 	to_download = [] # will be appended with [first_link, subject_code, week_num, lec_num, date]
 	
 	# print status
-	print("Building list of lectures")
+	print("Building list of lectures...")
 	# scroll_wrapper = driver.find_elements
 	# driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
 	# for each li element, build up filename info and add to download list
@@ -462,7 +473,8 @@ for subj in user_subjects:
 	for item in lectures_list:
 		# Append to download list if the file in date range and doesn't exist yet.
 		if item[4] in dates_list and not os.path.isfile(item[6]):
-			to_download.append(item)
+			print("Will download", item[5])
+			to_download.append((item, False)) # False means not downloaded at all.
 
 		# If the file is in the range but does exist, check that the file is completely
 		# downloaded. If not, we will add it to the download list and overwrite the 
@@ -492,8 +504,9 @@ for subj in user_subjects:
 
 			# Add to download list with note that it was incomplete.
 			if sizeWeb > sizeLocal:
-				item.append("- Incomplete file ({0:.1f}/{0:.1f} kb). Will download again.".format(sizeLocal/1000, sizeWeb/1000))
-				to_download.append(item)
+				item.append("Incomplete file (%0.1f/%0.1f kb)." % (sizeLocal/1000, sizeWeb/1000))
+				to_download.append((item, (sizeLocal, sizeWeb))) # Include this tuple instead of a Bool if it is partially downloaded.
+				print("Resuming " + item[5] + ": " + item[7])
 			# Otherwise the file must be fully downloaded.
 			else:
 				item.append("File already exists on disk (fully downloaded).")
@@ -517,10 +530,10 @@ for subj in user_subjects:
 	# print list of lectures to be downloaded
 	if len(to_download) > 0:
 		print("Lectures to be downloaded:")
-		for item in to_download:
+		for item, partial in to_download:
 			# Print with additional note if it's there.
 			try:
-				print(item[5], item[7])
+				print(item[5], "-", item[7])
 			# Otherwise just print the lecture name.
 			except IndexError:
 				print(item[5])
@@ -528,7 +541,7 @@ for subj in user_subjects:
 		print("No lectures to be downloaded.")
 	
 	# for each lecture, set filename and download
-	for link in to_download:
+	for link, partial in to_download:
 		# link = [first_link, subject_code, week_num, lec_num, date, filename, file_path]
 		# build up filename
 		print("Now working on", link[5])
@@ -539,8 +552,25 @@ for subj in user_subjects:
 		# send javascript to stop download redirect
 		driver.execute_script('stopCounting=true')
 
-		print("Downloading to ", link[6])
-		urllib.request.urlretrieve(dl_link, link[6], reporthook)
+		# Easy to deal with full download, just use urlretrieve. reporthook gives a progress bar.
+		if partial == False:
+			print("Downloading to", link[6])
+			urllib.request.urlretrieve(dl_link, link[6], reporthook)
+		# This handles a partially downloaded file.
+		else:
+			sizeLocal = partial[0]
+			sizeWeb = partial[1]
+			print("Resuming partial download of %s (%0.1f/%0.1f)." % (link[5], sizeLocal/1000, sizeWeb/1000))
+
+			req = urllib.request.Request(dl_link)
+			req.headers['Range'] = 'bytes=%s-' % sizeLocal
+			f = urllib.request.urlopen(req)
+			# The ab is the append write mode.
+			with open(link[6], 'ab') as output:
+				for chunk in show_progress(f, sizeLocal, sizeWeb):
+			    	# Process the chunk
+					output.write(chunk)
+			
 		print("Completed! Going to next file!")
 		downloaded_lectures.append(link)
 		time.sleep(2)
@@ -571,3 +601,5 @@ if len(skipped_lectures) > 0:
 		print(item[5] + ": " + item[7])
 
 driver.quit()
+
+print("\nDone!\n")
