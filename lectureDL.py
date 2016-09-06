@@ -34,21 +34,6 @@ from sys import exit
 from sys import argv
 from sys import platform
 
-"""
-These can be set to run the program automatically. Below are examples:
-
-input_user = "porteousd"
-# Save password in environment variable.
-input_pass = environ["UNIMELBPASS"]
-subjectChoices = "3,4,5"
-mediaType = "v"
-dateRange = "" # Means all dates. Note that Larry has coded "all" to mean only for this semester.
-
-In future it could be coded to read in a config file with this stuff quite easily.
-To have the program ask you these instead, leave these values as None.
-"""
-
-
 # Set any of these to None to use default functionality (asking the user each time).
 input_user = None
 input_pass = None
@@ -56,14 +41,14 @@ subjectChoices = None
 mediaType = None
 dateRange = None # Means all dates. Note that Larry has coded "all" to mean only for this semester.
 
-
 # My defaults:
 input_user = "porteousd"
 # Save password in environment variable.
 input_pass = environ["UNIMELBPASS"]
 subjectChoices = ""
 mediaType = "v"
-dateRange = "" # Means all dates. Note that Larry has coded "all" to mean only for this semester.
+# The date from which you want to download, upto and including the present day.
+dateRange = "05/09/2016" # "" means all dates. Note that Larry has coded "all" to mean only for this semester.
 
 
 # Setup download folders
@@ -72,11 +57,6 @@ video_folder = os.path.join(home_dir, "Dropbox/uni2016")
 audio_folder = video_folder
 lectureFolderName = "lectures"
 
-# If they don't exist, make them
-if not os.path.exists(video_folder):
-	os.makedirs(video_folder)
-if not os.path.exists(audio_folder):
-	os.makedirs(audio_folder)
 
 def getSubjectFolder(fname):
 	subjectCode = fname.split()[0].lower()
@@ -137,6 +117,7 @@ def show_progress(filehook, localSize, webSize, chunk_size=1024):
 
 # build week number dictionary
 current_date = datetime.datetime(2016, 7, 25)
+today = datetime.datetime.today(); today_midnight = datetime.datetime(today.year, today.month, today.day)
 start_week0 = datetime.datetime(2016, 7, 18)
 end_week0 = datetime.datetime(2016, 7, 24)
 day_delta = timedelta(days=1)
@@ -216,6 +197,7 @@ while user_dates_input == "default":
 			dates_in_week = [start_date + datetime.timedelta(n) for n in range(int((end_date - start_date).days))]
 			dates_list += dates_in_week
 			print("Week ", item)
+		dates_list.append(today_midnight)
 	elif "-" in user_dates_input or "/" in user_dates_input:
 		# create a table of dates between start date and end date 
 		if "-" in user_dates_input:
@@ -230,11 +212,12 @@ while user_dates_input == "default":
 			start_date = datetime.datetime.strptime(user_dates_input, "%d/%m/%Y")
 			end_date = datetime.datetime.today()
 		dates_list = [start_date + datetime.timedelta(n) for n in range(int((end_date - start_date).days))]
+		dates_list.append(today_midnight)
 		print("Lectures will be downloaded for the dates between " + datetime.datetime.strftime(start_date, "%d %B")
-		 + " and " + datetime.datetime.strftime(end_date, "%d %B"))
+		 + " and " + datetime.datetime.strftime(end_date, "%d %B") + ", inclusive.")
 	else:
 		print("That wasn't an option")
-		user_dates_input = "default"
+		user_dates_input = "default" # Go back to top of while loop.
 
 # startup chrome instance
 print("Starting up Chrome instance")
@@ -299,7 +282,7 @@ subject_list, numSubjects = getSubjectList()
 while numSubjects <= 2:
 	subject_list, numSubjects = getSubjectList()
 	print("Waiting for subject list to load in LMS...")
-	time.sleep(2)
+	time.sleep(1)
 
 
 # print subjects to download
@@ -415,6 +398,11 @@ for subj in user_subjects:
 		# so I need to get rid of time and add year
 		date_string = " ".join(date_div.text.split(" ")[:-2]) + " 2016"
 		date = datetime.datetime.strptime(date_string, "%B %d %Y")
+
+		# Checking if we can terminate early.
+		if date < dates_list[0]:
+			print("The lectures further down are outside the date range, no need to check them.")
+			break
 		
 		#lookup week number and set default lecture number
 		week_num = week_day[date]
@@ -442,7 +430,6 @@ for subj in user_subjects:
 				
 		# add info to download list
 		lectures_list.append([first_link, subject_code, week_num, lec_num, date])
-		#time.sleep(1)
 	
 	# assign filenames
 	# made it a separate loop because in the loop above it's constantly updating earlier values etc
@@ -450,8 +437,9 @@ for subj in user_subjects:
 		filename = item[1] + " Week " + str(item[2]).zfill(2) + " Lecture"
 		# Getting the subject folder in which to put the lecture.
 		subjectFolder = getSubjectFolder(item[1]) # Item 1 is subject_code.
-		if multiple_lectures == True:
-			filename = filename + " " + str(item[3])
+		# if multiple_lectures == True: Don't worry about this, wasn't implemented properly in the first place.
+		# This line would determine whether to append the lecture number to the file name.
+		filename = filename + " " + str(item[3])
 
 		if download_mode == "audio":
 			filename_with_ext = filename + ".mp3"
