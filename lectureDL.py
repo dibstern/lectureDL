@@ -397,7 +397,7 @@ for subj in user_subjects:
 		# date is formatted like "August 02 3:20 PM" but I want "August 02 2016"
 		# so I need to get rid of time and add year
 		date_string = " ".join(date_div.text.split(" ")[:-2]) + " 2016"
-		date = datetime.datetime.strptime(date_string, "%B %d %Y")
+		date = datetime.datetime.strptime(date_string, "%d %B %Y")
 
 		# Checking if we can terminate early.
 		if date < dates_list[0]:
