@@ -2,21 +2,39 @@
 # lectureDL.py by Larry Hudson
 # Python script to download all lecture files, either video or audio
 # What it does:
-    # Logs in to Unimelb LMS system
-    # Builds list of subjects
-    # For each subject, navigate through to echo system
-    # Builds list of lectures
-    # For each lecture, builds filename based on subject number and date and downloads
+#   Logs in to Unimelb LMS system
+#   Builds list of subjects
+#   For each subject, navigate through to echo system
+#   Builds list of lectures
+#   For each lecture, builds filename based on subject number and date and downloads
 # Features:
-    # Assigns week numbers based on date - formatted eg. "LING30001 Week 1 Lecture 2.m4a"
-    # Support for subjects with single or multiple lectures per week
-    # Skips if file already exists
-    # Can download either video files or audio files
-    # Allows user to choose specific subjects and to only download lectures newer than a specific date
+#   Assigns week numbers based on date - formatted eg. "LING30001 Week 1 Lecture 2.m4a"
+#   Support for subjects with single or multiple lectures per week
+#   Skips if file already exists
+#   Can download either video files or audio files
+#   Allows user to choose specific subjects and to only download lectures newer than a specific date
 # To do list:
-    # Allow user to choose download folder
-    # Replace list system (eg. to_download) with class and attributes?
-    # Change Week numbering from Week 1 to Week 01 (yeah yeah) - best boy Astrid xox
+#   Allow user to choose download folder
+#   Replace list system (eg. to_download) with class and attributes?
+#   Change Week numbering from Week 1 to Week 01 (yeah yeah) - best boy Astrid xox
+
+# READ ME (Update as of 2017-07-29):
+# If you're modifying this in the future, know first off that the code was
+# not designed with easy future use, nor abstraction in general, in mind.
+# I've made it a bit better but it's still messy. Assuming you've got the
+# required directory structure in place (check out the video_folder variable),
+# you'll have to:
+# 1. Change the current year and semester if necessary.
+# 2. Change the variables representing the start of the semester (such as
+#    start_week0 and current_date) for this semester.
+# 3. Manually download the latest ChromeDriver and change the driver variable
+#    accordingly.
+# 4. Perhaps change / comment out the default variables (e.g. input_user).
+# While it might be worth it, I feel like it'd be a fair bit of work to
+# refactor this project to be "Good TM", after which you could start adding
+# extra features. Like imagine trying to catch a selenium error and closing
+# chrome if one is encountered, it'd be like a million try/excepts.
+# So yeah, maybe one day. Still it wasn't too hard to get it working again.
 
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
@@ -32,7 +50,6 @@ from os import environ
 from os import listdir
 from sys import exit
 from sys import argv
-from sys import platform
 
 # Set any of these to None to use default functionality (asking the user each time).
 input_user = None
@@ -48,12 +65,12 @@ input_pass = environ["UNIMELBPASS"]
 subjectChoices = ""
 mediaType = "v"
 # The date from which you want to download, upto and including the present day.
-dateRange = "15/09/2016" # "" means all dates. Note that Larry has coded "all" to mean only for this semester.
+dateRange = "" # "" means all dates. Note that Larry has coded "all" to mean only for this semester.
 
 
 # Setup download folders
 home_dir = os.path.expanduser("~")
-video_folder = os.path.join(home_dir, "Dropbox/uni2016")
+video_folder = os.path.join(home_dir, "Dropbox/uni2017")
 audio_folder = video_folder
 lectureFolderName = "lectures"
 
@@ -108,7 +125,7 @@ def show_progress(filehook, localSize, webSize, chunk_size=1024):
     total_read = localSize
     while True:
         chunk = fh.read(chunk_size)
-        if not chunk: 
+        if not chunk:
             fh.close()
             break
         total_read += len(chunk)
@@ -116,10 +133,11 @@ def show_progress(filehook, localSize, webSize, chunk_size=1024):
         yield chunk
 
 # build week number dictionary
-current_date = datetime.datetime(2016, 7, 25)
+current_year = 2017
+current_date = datetime.datetime(current_year, 7, 24)
 today = datetime.datetime.today(); today_midnight = datetime.datetime(today.year, today.month, today.day)
-start_week0 = datetime.datetime(2016, 7, 18)
-end_week0 = datetime.datetime(2016, 7, 24)
+start_week0 = datetime.datetime(current_year, 7, 17)
+end_week0 = datetime.datetime(current_year, 7, 23)
 day_delta = timedelta(days=1)
 week_delta = timedelta(days=7)
 week_counter = 1
@@ -136,14 +154,9 @@ while week_counter <= 12:
     week_counter += 1
     # If we enter the week of the midsem break, skip a week.
     if week_counter == midsemBreakWeek + 1:
-        print(current_date)
         current_date = current_date + week_delta
-        print(current_date)
     day_counter = 1
 
-for i in week_day:
-    print(week_day[i], i)
-                
 # set defaults until user changes them
 download_mode = "default"
 user_dates_input = "default"
@@ -170,7 +183,7 @@ while download_mode == "default":
         print("That wasn't an option.")
 
 # old functionality
-# specify specific subjects, or download all videos     
+# specify specific subjects, or download all videos
 # while user_subjects == "default":
 #   print("Enter subject codes separated by ', ' or leave blank to download all")
 #   user_subjects_input = input("> ")
@@ -187,7 +200,7 @@ while user_dates_input == "default":
         print("Enter a range of weeks (eg. 1-5 or 1,3,4) or a date (DD/MM/2016) to download videos that have since been released.")
         user_dates_input = input("> ")
     else:
-        if len(dateRange) > 0: 
+        if len(dateRange) > 0:
             print("Using", dateRange)
         else:
             print("Downloading all.")
@@ -208,7 +221,7 @@ while user_dates_input == "default":
             print("Week ", item)
         dates_list.append(today_midnight)
     elif "-" in user_dates_input or "/" in user_dates_input:
-        # create a table of dates between start date and end date 
+        # create a table of dates between start date and end date
         if "-" in user_dates_input:
             # splits the start and the end weeks
             chosen_weeks = user_dates_input.split("-")
@@ -230,7 +243,7 @@ while user_dates_input == "default":
 
 # startup chrome instance
 print("Starting up Chrome instance")
-driver = webdriver.Chrome("ChromeDriver/chromedriver2")
+driver = webdriver.Chrome("ChromeDriver/chromedriver 2.31")
 
 # login process
 print("Starting login process")
@@ -257,7 +270,7 @@ def getSubjectList():
         # This section must not have loaded yet.
         return [], 0
 
-    subject_list = [] 
+    subject_list = []
     subj_num = 1
 
     # get subject info from list of 'a' elements
@@ -273,11 +286,11 @@ def getSubjectList():
         subj_name = ": ".join(middle_split[1:])
         # get subject link
         subj_link = link.get_attribute("href")
-        
+
         # set default for checking against user-specified subjects
         skip_subj = False
         subject_list.append([subj_code, subj_name, subj_link, subj_num])
-        
+
         subj_num += 1
 
     return subject_list, len(subject_list)
@@ -328,32 +341,32 @@ print("Subjects to be downloaded:")
 for item in user_subjects:
     # print subject code: subject title
     print(item[0] + ": " + item[1])
-                
+
 # for each subject, navigate through site and download lectures
 for subj in user_subjects:
     # print status
     print("\nNow working on " + subj[0] + ": " + subj[1])
-    
+
     # go to subject page and find Lecture Recordings page
     driver.get(subj[2])
     recs_page = search_link_text(driver, ["Lecture capture", "Recordings", "recordings", "Capture", "capture"])
-    
+
     # if no recordings page found, skip to next subject
     if recs_page is None:
         print("No recordings page found, skipping to next subject")
         continue
-    
+
     recs_page.click()
-    
+
     # sometimes sidebar links goes directly to echo page, sometimes there's a page in between
     # if there's no iframe, it's on the page in between
     if len(driver.find_elements_by_tag_name("iframe")) == 0:
         links_list = driver.find_element_by_css_selector("ul.contentList")
         recs_page2 = search_link_text(links_list, ["Recordings", "Capture", "recordings", "capture"])
-        
+
         recs_page2.click()
     time.sleep(4)
-    
+
     # now on main page. navigate through iframes
     iframe = driver.find_elements_by_tag_name('iframe')[1]
     driver.switch_to_frame(iframe)
@@ -361,7 +374,7 @@ for subj in user_subjects:
     driver.switch_to_frame(iframe2)
     iframe3 = driver.find_elements_by_tag_name('iframe')[0]
     driver.switch_to_frame(iframe3)
-    
+
     # find ul element, list of recordings
     pageLoaded = False
     while pageLoaded == False:
@@ -372,13 +385,13 @@ for subj in user_subjects:
         except NoSuchElementException:
             print("Slow connection, waiting for echocenter to load...")
             time.sleep(3)
-    
+
     # setup for recordings
     subject_code = subj[0]
     multiple_lectures = False
     lectures_list = []
     to_download = [] # will be appended with [first_link, subject_code, week_num, lec_num, date]
-    
+
     # print status
     print("Building list of lectures...")
     # scroll_wrapper = driver.find_elements
@@ -387,7 +400,7 @@ for subj in user_subjects:
     for item in recs_list:
         # click on each recording to get different download links
         date_div = item.find_element_by_css_selector("div.echo-date")
-        
+
         # Deals with error where the next element can't be selected if it isn't literally visible.
         # Weird behaviour, but the solution is to catch the error and tab downwards.
         try:
@@ -400,22 +413,22 @@ for subj in user_subjects:
             actions.perform()
 
         #time.sleep(2)
-        
+
         # convert string into datetime.datetime object
         # date is formatted like "August 02 3:20 PM" but I want "August 02 2016"
         # so I need to get rid of time and add year
-        date_string = " ".join(date_div.text.split(" ")[:-2]) + " 2016"
+        date_string = " ".join(date_div.text.split(" ")[:-2]) + " " + str(current_year)
         date = datetime.datetime.strptime(date_string, "%d %B %Y")
 
         # Checking if we can terminate early.
         if date < dates_list[0]:
             print("The lectures further down are outside the date range, no need to check them.")
             break
-        
+
         #lookup week number and set default lecture number
         week_num = week_day[date]
         lec_num = 1
-        
+
         # get link to initial download page for either audio or video
         while True:
             try:
@@ -427,7 +440,7 @@ for subj in user_subjects:
             except NoSuchElementException:
                 time.sleep(0.5)
                 pass
-            
+
         # check if week_num is already in to_download
         for sublist in lectures_list:
             if sublist[2] == week_num:
@@ -435,10 +448,10 @@ for subj in user_subjects:
                 multiple_lectures = True
                 # add 1 to lec_num of earlier video
                 sublist[3] += 1
-                
+
         # add info to download list
         lectures_list.append([first_link, subject_code, week_num, lec_num, date])
-    
+
     # assign filenames
     # made it a separate loop because in the loop above it's constantly updating earlier values etc
     for item in lectures_list:
@@ -455,7 +468,7 @@ for subj in user_subjects:
         else:
             filename_with_ext = filename + ".m4v"
             folder = video_folder
-        
+
         file_path = os.path.join(folder, subjectFolder, lectureFolderName, filename_with_ext)
 
         if not os.path.isdir(os.path.join(folder, subjectFolder, lectureFolderName)):
@@ -464,7 +477,7 @@ for subj in user_subjects:
 
         item.append(filename)
         item.append(file_path)
-        
+
     # only add lectures to be downloaded if they are inside date range. else, skip them
     for item in lectures_list:
         # Append to download list if the file in date range and doesn't exist yet.
@@ -473,7 +486,7 @@ for subj in user_subjects:
             to_download.append((item, False)) # False means not downloaded at all.
 
         # If the file is in the range but does exist, check that the file is completely
-        # downloaded. If not, we will add it to the download list and overwrite the 
+        # downloaded. If not, we will add it to the download list and overwrite the
         # local incomplete version.
         elif item[4] in dates_list and os.path.isfile(item[6]):
             driver.get(item[0])
@@ -482,11 +495,11 @@ for subj in user_subjects:
             # send javascript to stop download redirect
             driver.execute_script('stopCounting=true')
 
-            # Check size of file on server. If the server version is larger than the local version, 
-            # we notify the user of an incomplete file (perhaps the connection dropped or the user 
+            # Check size of file on server. If the server version is larger than the local version,
+            # we notify the user of an incomplete file (perhaps the connection dropped or the user
             # cancelled the download). We tell them we're going to download it again.
             # Using wget we could resume the download, but python urllib doesn't have such functionality.
-            try:    
+            try:
                 f = urllib.request.urlopen(dl_link)
                 # This is the size of the file on the server in bytes.
                 sizeWeb = int(f.headers["Content-Length"])
@@ -522,7 +535,7 @@ for subj in user_subjects:
                 item.append("File already exists")
             skipped_lectures.append(item)
             print("Skipping " + item[5] + ": " + item[7])
-    
+
     # print list of lectures to be downloaded
     if len(to_download) > 0:
         print("Lectures to be downloaded:")
@@ -535,7 +548,7 @@ for subj in user_subjects:
                 print(item[5])
     else:
         print("No lectures to be downloaded.")
-    
+
     # for each lecture, set filename and download
     for link, partial in to_download:
         # link = [first_link, subject_code, week_num, lec_num, date, filename, file_path]
@@ -566,15 +579,15 @@ for subj in user_subjects:
                 for chunk in show_progress(f, sizeLocal, sizeWeb):
                     # Process the chunk
                     output.write(chunk)
-            
+
         print("Completed! Going to next file!")
         downloaded_lectures.append(link)
         time.sleep(2)
-            
-    # when finished with subject        
+
+    # when finished with subject
     print("Finished downloading files for", subj[1])
-    
-# when finished with all subjects   
+
+# when finished with all subjects
 print("All done!")
 
 # [first_link, subject_code, week_num, lec_num, date]
