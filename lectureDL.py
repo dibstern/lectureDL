@@ -74,6 +74,15 @@ video_folder = os.path.join(home_dir, "Dropbox/uni2017")
 audio_folder = video_folder
 lectureFolderName = "lectures"
 
+if not os.path.exists(video_folder):
+    conf = input(
+        str(video_folder) + ' doesn\'t exist.\nWould you like to use the Downloads folder instead? '
+    )[0].lower()
+    if conf != 'y':
+        print('Ok, shutting down.')
+        exit()
+    video_folder = os.path.join(home_dir, "Downloads")
+
 
 def getSubjectFolder(fname):
     subjectCode = fname.split()[0].lower()
@@ -241,13 +250,13 @@ while user_dates_input == "default":
         print("That wasn't an option")
         user_dates_input = "default" # Go back to top of while loop.
 
-# startup chrome instance
+# Start Chrome instance
 print("Starting up Chrome instance")
 driver = webdriver.Chrome("ChromeDriver/chromedriver 2.31")
 
 # login process
 print("Starting login process")
-driver.get("http://app.lms.unimelb.edu.au")
+driver.get("https://app.lms.unimelb.edu.au")
 user_field = driver.find_element_by_css_selector("input[name=user_id]")
 if input_user is None:
     input_user = input("Enter your username: ")
@@ -349,7 +358,7 @@ for subj in user_subjects:
 
     # go to subject page and find Lecture Recordings page
     driver.get(subj[2])
-    recs_page = search_link_text(driver, ["Lecture capture", "Recordings", "recordings", "Capture", "capture"])
+    recs_page = search_link_text(driver, ["Lectures", "lectures", "Lecture capture", "Recordings", "recordings", "Capture", "capture"])
 
     # if no recordings page found, skip to next subject
     if recs_page is None:
@@ -362,7 +371,7 @@ for subj in user_subjects:
     # if there's no iframe, it's on the page in between
     if len(driver.find_elements_by_tag_name("iframe")) == 0:
         links_list = driver.find_element_by_css_selector("ul.contentList")
-        recs_page2 = search_link_text(links_list, ["Recordings", "Capture", "recordings", "capture"])
+        recs_page2 = search_link_text(links_list, ["Lectures", "lectures", "Recordings", "Capture", "recordings", "capture"])
 
         recs_page2.click()
     time.sleep(4)
