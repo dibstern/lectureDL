@@ -29,7 +29,7 @@
 #    start_week0 and current_date) for this semester.
 # 3. Manually download the latest ChromeDriver and change the driver variable
 #    accordingly.
-# 4. Perhaps change / comment out the default variables (e.g. input_user).
+# 4. Perhaps change settings.py.
 # While it might be worth it, I feel like it'd be a fair bit of work to
 # refactor this project to be "Good TM", after which you could start adding
 # extra features. Like imagine trying to catch a selenium error and closing
@@ -38,34 +38,29 @@
 
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
-from selenium.common.exceptions import NoSuchElementException, ElementNotVisibleException
-import time
+from selenium.common.exceptions import (
+    NoSuchElementException,
+    ElementNotVisibleException,
+)
+
 import datetime
-from datetime import timedelta
-import urllib
+import getpass
 import os.path
-from sys import stderr
-from os import stat
-from os import environ
+import time
+import urllib
+
+from collections import defaultdict
 from os import listdir
-from sys import exit
+from os import stat
 from sys import argv
+from sys import exit
+from sys import stderr
 
-# Set any of these to None to use default functionality (asking the user each time).
-input_user = None
-input_pass = None
-subjectChoices = None
-mediaType = None
-dateRange = None # Means all dates. Note that Larry has coded "all" to mean only for this semester.
-
-# My defaults:
-input_user = "porteousd"
-# Save password in environment variable.
-input_pass = environ["UNIMELBPASS"]
-subjectChoices = ""
-mediaType = "v"
-# The date from which you want to download, upto and including the present day.
-dateRange = "" # "" means all dates. Note that Larry has coded "all" to mean only for this semester.
+# Try to read in a settings file.
+try:
+    from settings import settings
+except ImportError:
+    settings = defaultdict(lambda: None)
 
 
 # Setup download folders
@@ -73,6 +68,7 @@ home_dir = os.path.expanduser("~")
 video_folder = os.path.join(home_dir, "Dropbox/uni2017")
 audio_folder = video_folder
 lectureFolderName = "lectures"
+
 
 if not os.path.exists(video_folder):
     conf = input(
@@ -147,8 +143,8 @@ current_date = datetime.datetime(current_year, 7, 24)
 today = datetime.datetime.today(); today_midnight = datetime.datetime(today.year, today.month, today.day)
 start_week0 = datetime.datetime(current_year, 7, 17)
 end_week0 = datetime.datetime(current_year, 7, 23)
-day_delta = timedelta(days=1)
-week_delta = timedelta(days=7)
+day_delta = datetime.timedelta(days=1)
+week_delta = datetime.timedelta(days=7)
 week_counter = 1
 day_counter = 1
 week_day = {}
@@ -177,11 +173,11 @@ print("Welcome to", argv[0])
 # set download mode
 while download_mode == "default":
     print("Enter 'v' to download videos or 'a' to download audio")
-    if mediaType is None:
+    if settings['media_type'] is None:
         user_choice = input("> ")
     else:
-        print("Using " + mediaType)
-        user_choice = mediaType
+        print("Using " + settings['media_type'])
+        user_choice = settings['media_type']
     if user_choice == "a":
         download_mode = "audio"
     elif user_choice == "v":
@@ -205,15 +201,15 @@ user_dates_input
 # if user enters comma-separated weeks, make a list for each and then concatenate
 print("Would you like to download lectures from specific weeks or since a particular date?")
 while user_dates_input == "default":
-    if dateRange is None:
+    if settings['date_range'] is None:
         print("Enter a range of weeks (eg. 1-5 or 1,3,4) or a date (DD/MM/2016) to download videos that have since been released.")
         user_dates_input = input("> ")
     else:
-        if len(dateRange) > 0:
-            print("Using", dateRange)
+        if len(settings['date_range']) > 0:
+            print("Using", settings['date_range'])
         else:
             print("Downloading all.")
-        user_dates_input = dateRange
+        user_dates_input = settings['date_range']
     dates_list = []
     if user_dates_input == "":
         # if left blank, download all videos
@@ -258,13 +254,13 @@ driver = webdriver.Chrome("ChromeDriver/chromedriver 2.31")
 print("Starting login process")
 driver.get("https://app.lms.unimelb.edu.au")
 user_field = driver.find_element_by_css_selector("input[name=user_id]")
-if input_user is None:
-    input_user = input("Enter your username: ")
-user_field.send_keys(input_user)
+if settings['username'] is None:
+    settings['username'] = input("Enter your username: ")
+user_field.send_keys(settings['username'])
 pass_field = driver.find_element_by_css_selector("input[name=password]")
-if input_pass is None:
-    input_pass = os.path.getpass("Enter your password: ")
-pass_field.send_keys(input_pass)
+if settings['password'] is None:
+    settings['password'] = getpass.getpass("Enter your password: ")
+pass_field.send_keys(settings['password'])
 print()
 pass_field.send_keys(Keys.RETURN)
 
@@ -327,11 +323,11 @@ skipped_subjects = []
 
 # choose subjects from list
 print("Please enter subjects you would like to download (eg. 1,2,3) or leave blank to download all.")
-if subjectChoices is None:
+if settings['subject_choices'] is None:
     user_choice = input("> ")
 else:
-    print("Using " + subjectChoices)
-    user_choice = subjectChoices
+    print("Using " + settings['subject_choices'])
+    user_choice = settings['subject_choices']
 
 # for each chosen subj number, check if it is subj_num in subject list, if not skip it, if yes add it to subjects to be downloaded
 if not user_choice == "":
