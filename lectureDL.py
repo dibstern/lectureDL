@@ -267,7 +267,16 @@ pass_field.send_keys(Keys.RETURN)
 def getSubjectList():
     # list items in list class "courseListing"
     try:
-        course_list = driver.find_element_by_css_selector("ul.courseListing")
+        course_list_candidates = driver.find_elements_by_css_selector("ul.courseListing")
+        if len(course_list_candidates) == 0:
+            return [], 0
+        # Sometimese there is an invisible dummy subject list that of course
+        # lists no subjects. If the style property 'display' is 'none', we
+        # know it is the invisble one and we ignore it.
+        for c in course_list_candidates:
+            if c.value_of_css_property('display') == 'none':
+                continue
+            course_list = c
         # only get links with target="_top" to single out subject headings
         course_links = course_list.find_elements_by_css_selector('a[target=_top]')
         # list to be appended with [subj_code, subj_name, subj_link]
@@ -275,6 +284,7 @@ def getSubjectList():
         # This section must not have loaded yet.
         return [], 0
 
+    print(course_links)
     subject_list = []
     subj_num = 1
 
@@ -305,7 +315,7 @@ driver.refresh()
 # Making sure the subjet list has loaded. It will only equal 1 if not (for biomed in my case).
 subject_list, numSubjects = getSubjectList()
 # TODO think of a better way to select the lecture stuff and not the community stuff on the right.
-while numSubjects <= 2:
+while numSubjects < 1:
     subject_list, numSubjects = getSubjectList()
     print("Waiting for subject list to load in LMS...")
     time.sleep(1)
@@ -315,7 +325,7 @@ while numSubjects <= 2:
 print("Subject list:")
 for item in subject_list:
     # print subject code: subject title
-    print(str(item[3]) +  ". " + item[0] + ": " + item[1])
+    print(str(item[3]) + ". " + item[0] + ": " + item[1])
 
 # create lists for subjects to be added to
 user_subjects = []
