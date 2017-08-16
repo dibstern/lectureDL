@@ -7,5 +7,5 @@ settings = defaultdict(lambda: None, {
     'password': os.environ['UNIMELBPASS'],
     'media_type': 'v',
     'subject_choices': '',
-    'date_range': '',
+    'date_range': '3-12',
 })

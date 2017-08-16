@@ -284,7 +284,6 @@ def getSubjectList():
         # This section must not have loaded yet.
         return [], 0
 
-    print(course_links)
     subject_list = []
     subj_num = 1
 
