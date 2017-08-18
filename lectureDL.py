@@ -385,8 +385,7 @@ for subj in user_subjects:
         recs_page2.click()
 
     # now on main page. navigate through iframes
-    iframes_acquired = False
-    while not iframes_acquired:
+    while True:
         try:
             iframe = driver.find_elements_by_tag_name('iframe')[1]
             driver.switch_to_frame(iframe)
@@ -394,17 +393,16 @@ for subj in user_subjects:
             driver.switch_to_frame(iframe2)
             iframe3 = driver.find_elements_by_tag_name('iframe')[0]
             driver.switch_to_frame(iframe3)
-            iframes_acquired = True
+            break
         except:
             time.sleep(0.5)
 
     # find ul element, list of recordings
-    pageLoaded = False
-    while pageLoaded == False:
+    while True:
         try:
             recs_ul = driver.find_element_by_css_selector("ul#echoes-list")
             recs_list = recs_ul.find_elements_by_css_selector("li.li-echoes")
-            pageLoaded = True
+            break
         except NoSuchElementException:
             print("Slow connection, waiting for echocenter to load...")
             time.sleep(0.5)
@@ -460,7 +458,6 @@ for subj in user_subjects:
                 break
             except NoSuchElementException:
                 time.sleep(0.5)
-                pass
 
         # check if week_num is already in to_download
         for sublist in lectures_list:
@@ -510,12 +507,15 @@ for subj in user_subjects:
         # downloaded. If not, we will add it to the download list and overwrite the
         # local incomplete version.
         elif item[4] in dates_list and os.path.isfile(item[6]):
-            driver.get(item[0])
-            time.sleep(1)
-            dl_link = driver.find_element_by_partial_link_text("Download media file.").get_attribute("href")
-            # send javascript to stop download redirect
-            driver.execute_script('stopCounting=true')
-
+            while True:
+                try:
+                    driver.get(item[0])
+                    dl_link = driver.find_element_by_partial_link_text("Download media file.").get_attribute("href")
+                    # send javascript to stop download redirect
+                    driver.execute_script('stopCounting=true')
+                    break
+                except:
+                    time.sleep(0.5)
             # Check size of file on server. If the server version is larger than the local version,
             # we notify the user of an incomplete file (perhaps the connection dropped or the user
             # cancelled the download). We tell them we're going to download it again.
@@ -579,11 +579,15 @@ for subj in user_subjects:
         # build up filename
         print("Now working on", link[5])
         # go to initial download page and find actual download link
-        driver.get(link[0])
-        time.sleep(1)
-        dl_link = driver.find_element_by_partial_link_text("Download media file.").get_attribute("href")
-        # send javascript to stop download redirect
-        driver.execute_script('stopCounting=true')
+        while True:
+            try:
+                driver.get(link[0])
+                dl_link = driver.find_element_by_partial_link_text("Download media file.").get_attribute("href")
+                # send javascript to stop download redirect
+                driver.execute_script('stopCounting=true')
+                break
+            except:
+                time.sleep(0.5)
 
         # Easy to deal with full download, just use urlretrieve. reporthook gives a progress bar.
         if partial == False:
@@ -606,7 +610,6 @@ for subj in user_subjects:
 
         print("Completed! Going to next file!")
         downloaded_lectures.append(link)
-        time.sleep(2)
 
     # when finished with subject
     print("Finished downloading files for", subj[1])
