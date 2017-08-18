@@ -102,8 +102,12 @@ def reporthook(blocknum, blocksize, totalsize):
     readsofar = blocknum * blocksize
     if totalsize > 0:
         percent = readsofar * 1e2 / totalsize
-        s = "\r%5.1f%% %*d / %d bytes" % (
-            percent, len(str(totalsize)), readsofar, totalsize)
+        s = "\r%5.1f%% %*.1f / %.1f MiB" % (
+            percent,
+            len(str(totalsize)),
+            readsofar / 1024 / 1024,
+            totalsize / 1024 / 1024,
+        )
         stderr.write(s)
         if readsofar >= totalsize: # near the end
             stderr.write("\n")
@@ -317,7 +321,7 @@ subject_list, numSubjects = getSubjectList()
 while numSubjects < 1:
     subject_list, numSubjects = getSubjectList()
     print("Waiting for subject list to load in LMS...")
-    time.sleep(1)
+    time.sleep(0.5)
 
 
 # print subjects to download
@@ -379,15 +383,20 @@ for subj in user_subjects:
         recs_page2 = search_link_text(links_list, ["Lectures", "lectures", "Recordings", "Capture", "recordings", "capture"])
 
         recs_page2.click()
-    time.sleep(4)
 
     # now on main page. navigate through iframes
-    iframe = driver.find_elements_by_tag_name('iframe')[1]
-    driver.switch_to_frame(iframe)
-    iframe2 = driver.find_elements_by_tag_name('iframe')[0]
-    driver.switch_to_frame(iframe2)
-    iframe3 = driver.find_elements_by_tag_name('iframe')[0]
-    driver.switch_to_frame(iframe3)
+    iframes_acquired = False
+    while not iframes_acquired:
+        try:
+            iframe = driver.find_elements_by_tag_name('iframe')[1]
+            driver.switch_to_frame(iframe)
+            iframe2 = driver.find_elements_by_tag_name('iframe')[0]
+            driver.switch_to_frame(iframe2)
+            iframe3 = driver.find_elements_by_tag_name('iframe')[0]
+            driver.switch_to_frame(iframe3)
+            iframes_acquired = True
+        except:
+            time.sleep(0.5)
 
     # find ul element, list of recordings
     pageLoaded = False
@@ -398,7 +407,7 @@ for subj in user_subjects:
             pageLoaded = True
         except NoSuchElementException:
             print("Slow connection, waiting for echocenter to load...")
-            time.sleep(3)
+            time.sleep(0.5)
 
     # setup for recordings
     subject_code = subj[0]
@@ -425,8 +434,6 @@ for subj in user_subjects:
             actions.click()
             actions.send_keys(Keys.SPACE)
             actions.perform()
-
-        #time.sleep(2)
 
         # convert string into datetime.datetime object
         # date is formatted like "August 02 3:20 PM" but I want "August 02 2016"
@@ -527,7 +534,10 @@ for subj in user_subjects:
 
             # Add to download list with note that it was incomplete.
             if sizeWeb > sizeLocal:
-                item.append("Incomplete file (%0.1f/%0.1f kb)." % (sizeLocal/1000, sizeWeb/1000))
+                item.append("Incomplete file (%0.1f/%0.1f MiB)." % (
+                    sizeLocal / 1024 / 1024,
+                    sizeWeb / 1024 / 1024,
+                ))
                 to_download.append((item, (sizeLocal, sizeWeb))) # Include this tuple instead of a Bool if it is partially downloaded.
                 print("Resuming " + item[5] + ": " + item[7])
             # Otherwise the file must be fully downloaded.
