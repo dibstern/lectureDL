@@ -201,10 +201,14 @@ while download_mode == "default":
 #   else:
 #       user_subjects = []
 
-user_dates_input
 # if user enters comma-separated weeks, make a list for each and then concatenate
 print("Would you like to download lectures from specific weeks or since a particular date?")
 while user_dates_input == "default":
+    # Automatically set the week range if specified in the settings.
+    if settings['update_lower_week']:
+        lower_week_bound = (datetime.datetime.today() - start_week0).days // 7 + 1
+        settings['date_range'] = str(lower_week_bound) + '-12'
+    # Read in the date range if none was given in the settings.
     if settings['date_range'] is None:
         print("Enter a range of weeks (eg. 1-5 or 1,3,4) or a date (DD/MM/2016) to download videos that have since been released.")
         user_dates_input = input("> ")
