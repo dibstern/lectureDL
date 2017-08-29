@@ -5,7 +5,7 @@ from collections import defaultdict
 settings = defaultdict(lambda: None, {
     'username': 'porteousd',
     'password': os.environ['UNIMELBPASS'],
-    'media_type': 'v',
+    'media_type': 'video',
     'subject_choices': '',
     'date_range': '3-12',
     # If True, set lower week to current week (i.e. week 5 = 5-12).

@@ -168,29 +168,32 @@ while week_counter <= 12:
     day_counter = 1
 
 # set defaults until user changes them
-download_mode = "default"
+
 user_dates_input = "default"
 skipped_lectures = []
 downloaded_lectures = []
 
 print("Welcome to", argv[0])
 
-# set download mode
-while download_mode == "default":
-    print("Enter 'v' to download videos or 'a' to download audio")
-    if settings['media_type'] is None:
-        user_choice = input("> ")
-    else:
-        print("Using " + settings['media_type'])
-        user_choice = settings['media_type']
-    if user_choice == "a":
-        download_mode = "audio"
-    elif user_choice == "v":
-        download_mode = "video"
-    elif user_choice == "x":
-        exit()
-    else:
-        print("That wasn't an option.")
+
+# Determine download mode.
+def get_download_mode():
+    valid_options = {'a': 'audio', 'v': 'video'}
+    # Using the media_type specified in settings it was set.
+    if settings['media_type']:
+        return settings['media_type']
+    valid = False
+    while not valid:
+        valid = True
+        print("Enter 'v' to download videos or 'a' to download audio.")
+        user_choice = input("> ")[0].lower()
+        if user_choice in valid_options:
+            return valid_options[user_choice]
+        else:
+            print('That wasn\'t an option.')
+            valid = False
+
+download_mode = get_download_mode()
 
 # old functionality
 # specify specific subjects, or download all videos
