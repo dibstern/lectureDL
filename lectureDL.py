@@ -207,7 +207,7 @@ print("Would you like to download lectures from specific weeks or since a partic
 while user_dates_input == "default":
     # Automatically set the week range if specified in the settings.
     if settings['update_lower_week']:
-        lower_week_bound = (datetime.datetime.today() - start_week0).days // 7 + 1
+        lower_week_bound = (datetime.datetime.today() - start_week0).days // 7
         settings['date_range'] = str(lower_week_bound) + '-12'
     # Read in the date range if none was given in the settings.
     if settings['date_range'] is None:
@@ -259,8 +259,13 @@ while user_dates_input == "default":
 # Start Chrome instance
 print("Starting up Chrome instance")
 chrome_options = Options()
-chrome_options.add_argument("--window-size=1000,500")
-driver = webdriver.Chrome("ChromeDriver/chromedriver 2.31", chrome_options=chrome_options)
+window_size = settings.get('window_size', '1600,900')
+chrome_options.add_argument('--window-size=' + window_size)
+if settings['hide_window']:
+    print('Running in headless (hidden window) mode.')
+    chrome_options.add_argument('--headless')
+    chrome_options.add_argument('--disable-gpu')  # TODO Remove this one day.
+driver = webdriver.Chrome('ChromeDriver/chromedriver 2.31', chrome_options=chrome_options)
 
 
 # login process
@@ -383,7 +388,6 @@ for subj in user_subjects:
     try:
         recs_page = search_link_text(driver, lecture_tab_strings)
         recs_page.click()
-        break
     except:
         pullers = driver.find_elements_by_id("menuPuller")
         for i in pullers:
@@ -458,7 +462,11 @@ for subj in user_subjects:
         # date is formatted like "August 02 3:20 PM" but I want "August 02 2016"
         # so I need to get rid of time and add year
         date_string = " ".join(date_div.text.split(" ")[:-2]) + " " + str(current_year)
-        date = datetime.datetime.strptime(date_string, "%d %B %Y")
+        try:
+            date = datetime.datetime.strptime(date_string, "%d %B %Y")
+        except ValueError:
+            # Sometimes the date is presented in different format.
+            date = datetime.datetime.strptime(date_string, "%B %d %Y")
 
         # Checking if we can terminate early.
         if date < dates_list[0]:

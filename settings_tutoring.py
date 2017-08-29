@@ -10,4 +10,5 @@ settings = defaultdict(lambda: None, {
     'date_range': '3-12',
     # If True, set lower week to current week (i.e. week 5 = 5-12).
     'update_lower_week': True,
+    'hide_window': False,
 })
