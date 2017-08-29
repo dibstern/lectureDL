@@ -37,6 +37,7 @@
 # So yeah, maybe one day. Still it wasn't too hard to get it working again.
 
 from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import (
     NoSuchElementException,
@@ -254,9 +255,13 @@ while user_dates_input == "default":
         print("That wasn't an option")
         user_dates_input = "default" # Go back to top of while loop.
 
+
 # Start Chrome instance
 print("Starting up Chrome instance")
-driver = webdriver.Chrome("ChromeDriver/chromedriver 2.31")
+chrome_options = Options()
+chrome_options.add_argument("--window-size=1000,500")
+driver = webdriver.Chrome("ChromeDriver/chromedriver 2.31", chrome_options=chrome_options)
+
 
 # login process
 print("Starting login process")
@@ -276,8 +281,7 @@ def getSubjectList():
     # list items in list class "courseListing"
     try:
         course_list_candidates = driver.find_elements_by_css_selector("ul.courseListing")
-        if len(course_list_candidates) == 0:
-            return [], 0
+        course_list = None
         # Sometimese there is an invisible dummy subject list that of course
         # lists no subjects. If the style property 'display' is 'none', we
         # know it is the invisble one and we ignore it.
@@ -285,6 +289,8 @@ def getSubjectList():
             if c.value_of_css_property('display') == 'none':
                 continue
             course_list = c
+        if course_list is None:
+            return [], 0
         # only get links with target="_top" to single out subject headings
         course_links = course_list.find_elements_by_css_selector('a[target=_top]')
         # list to be appended with [subj_code, subj_name, subj_link]
@@ -368,17 +374,28 @@ for item in user_subjects:
 for subj in user_subjects:
     # print status
     print("\nNow working on " + subj[0] + ": " + subj[1])
+    lecture_tab_strings = ["Lectures", "lectures", "Lecture capture", "Recordings", "recordings", "Capture", "capture"]
 
     # go to subject page and find Lecture Recordings page
     driver.get(subj[2])
-    recs_page = search_link_text(driver, ["Lectures", "lectures", "Lecture capture", "Recordings", "recordings", "Capture", "capture"])
+
+    # If the window is too small we need to make the sidebar visisble.
+    try:
+        recs_page = search_link_text(driver, lecture_tab_strings)
+        recs_page.click()
+        break
+    except:
+        pullers = driver.find_elements_by_id("menuPuller")
+        for i in pullers:
+            i.click()
+        time.sleep(1)  # TODO this is very falky.
+        recs_page = search_link_text(driver, lecture_tab_strings)
+        recs_page.click()
 
     # if no recordings page found, skip to next subject
     if recs_page is None:
         print("No recordings page found, skipping to next subject")
         continue
-
-    recs_page.click()
 
     # sometimes sidebar links goes directly to echo page, sometimes there's a page in between
     # if there's no iframe, it's on the page in between
