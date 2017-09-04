@@ -1,14 +1,14 @@
 import os
 
 from collections import defaultdict
+from settings_base import _settings_base
 
-settings = defaultdict(lambda: None, {
+settings = {
     'username': 'porteousd',
     'password': os.environ['UNIMELBPASS'],
-    'media_type': 'video',
-    'subject_choices': '',
     'date_range': '3-12',
-    # If True, set lower week to current week (i.e. week 5 = 5-12).
-    'update_lower_week': True,
-    'hide_window': True,  # This is headless Chrome mode.
-})
+}
+
+# Merge settings_base and settings.
+# If there is a clash in keys, we use the value in settings.
+settings = defaultdict(lambda: None, {**_settings_base, **settings})
