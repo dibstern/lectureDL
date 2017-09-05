@@ -49,6 +49,7 @@ Note: I'd recommend hiding subjects that are not active this semester because th
 ## To do list:
 * Allow user to choose download folder
 * Replace list system (eg. to_download) with class and attributes?
+* **See the separate file `Todo list.md`.**
 
 ## Update as of 2017-07-29, copied from lectureDL.py
 If you're modifying this in the future, know first off that the code was not designed with easy future use, nor abstraction in general, in mind. I've made it a bit better but it's still messy. Assuming you've got the required directory structure in place (check out the video_folder variable), you'll have to:
