@@ -56,6 +56,11 @@ from os import stat
 from sys import argv
 from sys import exit
 from sys import stderr
+from util import (
+    retry_until_result,
+    reporthook,
+    show_progress,
+)
 
 # Try to read in a settings file.
 try:
@@ -96,25 +101,6 @@ def getSubjectFolder(fname):
         print("There is a name mismatch between the subjects list and the folder names.")
         exit(-1)
 
-# Progress bar code from here:
-# https://stackoverflow.com/questions/13881092/download-progressbar-for-python-3
-# This code is used in the urlretrieve call.
-def reporthook(blocknum, blocksize, totalsize):
-    readsofar = blocknum * blocksize
-    if totalsize > 0:
-        percent = readsofar * 1e2 / totalsize
-        s = "\r%5.1f%% %*.1f / %.1f MiB" % (
-            percent,
-            len(str(totalsize)),
-            readsofar / 1024 / 1024,
-            totalsize / 1024 / 1024,
-        )
-        stderr.write(s)
-        if readsofar >= totalsize: # near the end
-            stderr.write("\n")
-    else: # total size is unknown
-        stderr.write("read %d\n" % (readsofar,))
-
 # define function to find a link and return the one it finds
 # works by making a list of the elements and sorts by descending list length,
 # so it returns the one with length 1, avoiding the empty lists.
@@ -129,18 +115,7 @@ def search_link_text(parent, string_list):
     else:
         return sorted_list[0][0]
 
-def show_progress(filehook, localSize, webSize, chunk_size=1024):
-    fh = filehook
-    total_size = webSize
-    total_read = localSize
-    while True:
-        chunk = fh.read(chunk_size)
-        if not chunk:
-            fh.close()
-            break
-        total_read += len(chunk)
-        print("Progress: %0.1f%%" % (total_read*100.0/total_size), end="\r")
-        yield chunk
+
 
 # build week number dictionary
 current_year = 2017
@@ -169,7 +144,6 @@ while week_counter <= 12:
 
 # set defaults until user changes them
 
-user_dates_input = "default"
 skipped_lectures = []
 downloaded_lectures = []
 
@@ -197,66 +171,71 @@ download_mode = get_download_mode()
 
 # old functionality
 # specify specific subjects, or download all videos
-# while user_subjects == "default":
+# while subjects_to_download == "default":
 #   print("Enter subject codes separated by ', ' or leave blank to download all")
-#   user_subjects_input = input("> ")
-#   if not user_subjects_input == "":
-#       user_subjects = user_subjects_input.split(', ')
+#   subjects_to_download_input = input("> ")
+#   if not subjects_to_download_input == "":
+#       subjects_to_download = subjects_to_download_input.split(', ')
 #   else:
-#       user_subjects = []
+#       subjects_to_download = []
 
 # if user enters comma-separated weeks, make a list for each and then concatenate
-print("Would you like to download lectures from specific weeks or since a particular date?")
-while user_dates_input == "default":
-    # Automatically set the week range if specified in the settings.
-    if settings['update_lower_week']:
-        lower_week_bound = (datetime.datetime.today() - start_week0).days // 7
-        settings['date_range'] = str(lower_week_bound) + '-12'
-    # Read in the date range if none was given in the settings.
-    if settings['date_range'] is None:
-        print("Enter a range of weeks (eg. 1-5 or 1,3,4) or a date (DD/MM/2016) to download videos that have since been released.")
-        user_dates_input = input("> ")
-    else:
-        if len(settings['date_range']) > 0:
-            print("Using", settings['date_range'])
+def get_weeks_to_download():
+    user_dates_input = "default"
+    print("Would you like to download lectures from specific weeks or since a particular date?")
+    while user_dates_input == "default":
+        # Automatically set the week range if specified in the settings.
+        if settings['update_lower_week']:
+            lower_week_bound = (datetime.datetime.today() - start_week0).days // 7
+            settings['date_range'] = str(lower_week_bound) + '-12'
+        # Read in the date range if none was given in the settings.
+        if settings['date_range'] is None:
+            print("Enter a range of weeks (eg. 1-5 or 1,3,4) or a date (DD/MM/2016) to download videos that have since been released.")
+            user_dates_input = input("> ")
         else:
-            print("Downloading all.")
-        user_dates_input = settings['date_range']
-    dates_list = []
-    if user_dates_input == "":
-        # if left blank, download all videos
-        dates_list = [start_week0 + datetime.timedelta(n) for n in range(int((datetime.datetime.today() - start_week0).days + 1))]
-    elif "," in user_dates_input or user_dates_input.isdigit():
-        # if user enters comma-separated weeks, or just one, make a list for each and then concatenate
-        print("Lectures will be downloaded for: ")
-        chosen_weeks = user_dates_input.replace(" ", "").split(",")
-        for item in chosen_weeks:
-            start_date = start_week0 + (int(item) * week_delta)
-            end_date = end_week0 + (int(item) * week_delta)
-            dates_in_week = [start_date + datetime.timedelta(n) for n in range(int((end_date - start_date).days))]
-            dates_list += dates_in_week
-            print("Week ", item)
-        dates_list.append(today_midnight)
-    elif "-" in user_dates_input or "/" in user_dates_input:
-        # create a table of dates between start date and end date
-        if "-" in user_dates_input:
-            # splits the start and the end weeks
-            chosen_weeks = user_dates_input.split("-")
-            start_week = chosen_weeks[0]
-            end_week = chosen_weeks[1]
-            start_date = start_week0 + (int(start_week) * week_delta)
-            end_date = end_week0 + (int(end_week) * week_delta)
-        elif "/" in user_dates_input:
-            # create a range between start_date and today
-            start_date = datetime.datetime.strptime(user_dates_input, "%d/%m/%Y")
-            end_date = datetime.datetime.today()
-        dates_list = [start_date + datetime.timedelta(n) for n in range(int((end_date - start_date).days))]
-        dates_list.append(today_midnight)
-        print("Lectures will be downloaded for the dates between " + datetime.datetime.strftime(start_date, "%d %B")
-         + " and " + datetime.datetime.strftime(end_date, "%d %B") + ", inclusive.")
-    else:
-        print("That wasn't an option")
-        user_dates_input = "default" # Go back to top of while loop.
+            if len(settings['date_range']) > 0:
+                print("Using", settings['date_range'])
+            else:
+                print("Downloading all.")
+            user_dates_input = settings['date_range']
+        dates_list = []
+        if user_dates_input == "":
+            # if left blank, download all videos
+            dates_list = [start_week0 + datetime.timedelta(n) for n in range(int((datetime.datetime.today() - start_week0).days + 1))]
+        elif "," in user_dates_input or user_dates_input.isdigit():
+            # if user enters comma-separated weeks, or just one, make a list for each and then concatenate
+            print("Lectures will be downloaded for: ")
+            chosen_weeks = user_dates_input.replace(" ", "").split(",")
+            for item in chosen_weeks:
+                start_date = start_week0 + (int(item) * week_delta)
+                end_date = end_week0 + (int(item) * week_delta)
+                dates_in_week = [start_date + datetime.timedelta(n) for n in range(int((end_date - start_date).days))]
+                dates_list += dates_in_week
+                print("Week ", item)
+            dates_list.append(today_midnight)
+        elif "-" in user_dates_input or "/" in user_dates_input:
+            # create a table of dates between start date and end date
+            if "-" in user_dates_input:
+                # splits the start and the end weeks
+                chosen_weeks = user_dates_input.split("-")
+                start_week = chosen_weeks[0]
+                end_week = chosen_weeks[1]
+                start_date = start_week0 + (int(start_week) * week_delta)
+                end_date = end_week0 + (int(end_week) * week_delta)
+            elif "/" in user_dates_input:
+                # create a range between start_date and today
+                start_date = datetime.datetime.strptime(user_dates_input, "%d/%m/%Y")
+                end_date = datetime.datetime.today()
+            dates_list = [start_date + datetime.timedelta(n) for n in range(int((end_date - start_date).days))]
+            dates_list.append(today_midnight)
+            print("Lectures will be downloaded for the dates between " + datetime.datetime.strftime(start_date, "%d %B")
+             + " and " + datetime.datetime.strftime(end_date, "%d %B") + ", inclusive.")
+        else:
+            print("That wasn't an option")
+            user_dates_input = "default" # Go back to top of while loop.
+    return dates_list
+
+dates_list = get_weeks_to_download()
 
 
 # Start Chrome instance
@@ -274,23 +253,28 @@ driver = webdriver.Chrome('ChromeDriver/chromedriver 2.31', chrome_options=chrom
 # login process
 print("Starting login process")
 driver.get("https://app.lms.unimelb.edu.au")
-user_field = driver.find_element_by_css_selector("input[name=user_id]")
-if settings['username'] is None:
-    settings['username'] = input("Enter your username: ")
-user_field.send_keys(settings['username'])
-pass_field = driver.find_element_by_css_selector("input[name=password]")
-if settings['password'] is None:
-    settings['password'] = getpass.getpass("Enter your password: ")
-pass_field.send_keys(settings['password'])
-print()
-pass_field.send_keys(Keys.RETURN)
 
-def getSubjectList():
+def sign_in():
+    user_field = driver.find_element_by_css_selector("input[name=user_id]")
+    if settings['username'] is None:
+        settings['username'] = input("Enter your username: ")
+    user_field.send_keys(settings['username'])
+    pass_field = driver.find_element_by_css_selector("input[name=password]")
+    if settings['password'] is None:
+        settings['password'] = getpass.getpass("Enter your password: ")
+    pass_field.send_keys(settings['password'])
+    print()
+    pass_field.send_keys(Keys.RETURN)
+
+
+@retry_until_result('Waiting for course list to load...')
+def get_course_links():
     # list items in list class "courseListing"
+    course_links = None
     try:
         course_list_candidates = driver.find_elements_by_css_selector("ul.courseListing")
         course_list = None
-        # Sometimese there is an invisible dummy subject list that of course
+        # Sometimes there is an invisible dummy subject list that of course
         # lists no subjects. If the style property 'display' is 'none', we
         # know it is the invisble one and we ignore it.
         for c in course_list_candidates:
@@ -298,13 +282,21 @@ def getSubjectList():
                 continue
             course_list = c
         if course_list is None:
-            return [], 0
+            return None
         # only get links with target="_top" to single out subject headings
         course_links = course_list.find_elements_by_css_selector('a[target=_top]')
         # list to be appended with [subj_code, subj_name, subj_link]
     except NoSuchElementException:
         # This section must not have loaded yet.
-        return [], 0
+        return None
+
+    return course_links
+
+
+# TODO think of a better way to select the lecture stuff and not the community stuff on the right.
+def getSubjectList(course_links):
+    # Gets the subject list (with all the information for each).
+    # We expect the input argument (course_listing) to be properly populated.
 
     subject_list = []
     subj_num = 1
@@ -329,57 +321,58 @@ def getSubjectList():
 
         subj_num += 1
 
-    return subject_list, len(subject_list)
+    # They loaded! Don't recurse, return the list instead :)
+    return subject_list
 
+sign_in()
 print("Building list of subjects")
 driver.refresh()
-# Making sure the subjet list has loaded. It will only equal 1 if not (for biomed in my case).
-subject_list, numSubjects = getSubjectList()
-# TODO think of a better way to select the lecture stuff and not the community stuff on the right.
-while numSubjects < 1:
-    subject_list, numSubjects = getSubjectList()
-    print("Waiting for subject list to load in LMS...")
-    time.sleep(0.5)
+
+course_listing = get_course_links()
+subject_list = getSubjectList(course_listing)
+numSubjects = len(subject_list)
 
 
-# print subjects to download
-print("Subject list:")
-for item in subject_list:
-    # print subject code: subject title
-    print(str(item[3]) + ". " + item[0] + ": " + item[1])
-
-# create lists for subjects to be added to
-user_subjects = []
-skipped_subjects = []
-
-# choose subjects from list
-print("Please enter subjects you would like to download (eg. 1,2,3) or leave blank to download all.")
-if settings['subject_choices'] is None:
-    user_choice = input("> ")
-else:
-    print("Using " + settings['subject_choices'])
-    user_choice = settings['subject_choices']
-
-# for each chosen subj number, check if it is subj_num in subject list, if not skip it, if yes add it to subjects to be downloaded
-if not user_choice == "":
-    chosen_subj_nums = user_choice.split(",")
-    for item in chosen_subj_nums:
+def determine_subjects_to_download(subject_list):
+    # Print candidate subjects for download.
+    print("Subject list:")
+    for item in subject_list:
+        # print subject code: subject title
+        print(str(item[3]) + ". " + item[0] + ": " + item[1])
+    # Create lists to hold the subjects we're downloading and skipping.
+    subjects_to_download = []
+    skipped_subjects = []
+    # choose subjects from list
+    print("Please enter subjects you would like to download (eg. 1,2,3) or leave blank to download all.")
+    if settings['subject_choices'] is None:
+        user_choice = input("> ")
+    else:
+        print("Using " + settings['subject_choices'])
+        user_choice = settings['subject_choices']
+    # For each chosen subj number, check if it is subj_num in subject list.
+    # If not, skip it. If yes, add it to subjects to be downloaded.
+    if not user_choice == "":
+        chosen_subj_nums = user_choice.split(",")
+        for item in chosen_subj_nums:
+            for subj in subject_list:
+                if not item == str(subj[3]):
+                    skipped_subjects.append(subj)
+                else:
+                    subjects_to_download.append(subj)
+    else:
         for subj in subject_list:
-            if not item == str(subj[3]):
-                skipped_subjects.append(subj)
-            else:
-                user_subjects.append(subj)
-else:
-    for subj in subject_list:
-        user_subjects.append(subj)
+            subjects_to_download.append(subj)
+    return subjects_to_download
+
+subjects_to_download = determine_subjects_to_download(subject_list)
 
 print("Subjects to be downloaded:")
-for item in user_subjects:
+for item in subjects_to_download:
     # print subject code: subject title
     print(item[0] + ": " + item[1])
 
 # for each subject, navigate through site and download lectures
-for subj in user_subjects:
+for subj in subjects_to_download:
     # print status
     print("\nNow working on " + subj[0] + ": " + subj[1])
     lecture_tab_strings = ["Lectures", "lectures", "Lecture capture", "Recordings", "recordings", "Capture", "capture"]
