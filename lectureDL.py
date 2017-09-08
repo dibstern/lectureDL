@@ -68,25 +68,23 @@ try:
 except ImportError:
     settings = defaultdict(lambda: None)
 
-
-# Setup download folders
-home_dir = os.path.expanduser("~")
-video_folder = os.path.join(home_dir, "Dropbox/uni2017")
-audio_folder = video_folder
+LECTURE_TAB_STRINGS = ["Lectures", "lectures", "Lecture capture", "Recordings", "recordings", "Capture", "capture"]
 lectureFolderName = "lectures"
 
 
-if not os.path.exists(video_folder):
-    conf = input(
-        str(video_folder) + ' doesn\'t exist.\nWould you like to use the Downloads folder instead? '
-    )[0].lower()
-    if conf != 'y':
-        print('Ok, shutting down.')
-        exit()
-    video_folder = os.path.join(home_dir, "Downloads")
+def check_video_folder(video_folder):
+    if not os.path.exists(video_folder):
+        conf = input(
+            str(video_folder) + ' doesn\'t exist.\nWould you like to use the Downloads folder instead? '
+        )[0].lower()
+        if conf != 'y':
+            print('Ok, shutting down.')
+            exit()
+        video_folder = os.path.join(home_dir, "Downloads")
+    return video_folder
 
 
-def getSubjectFolder(fname):
+def getSubjectFolder(fname, video_folder):
     subjectCode = fname.split()[0].lower()
 
     # Using the subject code to find the appropriate folder.
@@ -116,40 +114,6 @@ def search_link_text(parent, string_list):
         return sorted_list[0][0]
 
 
-
-# build week number dictionary
-current_year = 2017
-current_date = datetime.datetime(current_year, 7, 24)
-today = datetime.datetime.today(); today_midnight = datetime.datetime(today.year, today.month, today.day)
-start_week0 = datetime.datetime(current_year, 7, 17)
-end_week0 = datetime.datetime(current_year, 7, 23)
-day_delta = datetime.timedelta(days=1)
-week_delta = datetime.timedelta(days=7)
-week_counter = 1
-day_counter = 1
-week_day = {}
-midsemBreakWeek = 9 # Mid sem break occurs after this week.
-
-# assigns a week number to each date.
-while week_counter <= 12:
-    while day_counter <= 7:
-        week_day[current_date] = week_counter
-        day_counter += 1
-        current_date = current_date + day_delta
-    week_counter += 1
-    # If we enter the week of the midsem break, skip a week.
-    if week_counter == midsemBreakWeek + 1:
-        current_date = current_date + week_delta
-    day_counter = 1
-
-# set defaults until user changes them
-
-skipped_lectures = []
-downloaded_lectures = []
-
-print("Welcome to", argv[0])
-
-
 # Determine download mode.
 def get_download_mode():
     valid_options = {'a': 'audio', 'v': 'video'}
@@ -167,8 +131,6 @@ def get_download_mode():
             print('That wasn\'t an option.')
             valid = False
 
-download_mode = get_download_mode()
-
 # old functionality
 # specify specific subjects, or download all videos
 # while subjects_to_download == "default":
@@ -180,7 +142,33 @@ download_mode = get_download_mode()
 #       subjects_to_download = []
 
 # if user enters comma-separated weeks, make a list for each and then concatenate
-def get_weeks_to_download():
+def get_weeks_to_download(current_year, week_day):
+    # TODO break up this god awful huge function.
+    # build week number dictionary
+    current_date = datetime.datetime(current_year, 7, 24)
+    today = datetime.datetime.today()
+    today_midnight = datetime.datetime(today.year, today.month, today.day)
+    start_week0 = datetime.datetime(current_year, 7, 17)
+    end_week0 = datetime.datetime(current_year, 7, 23)
+    day_delta = datetime.timedelta(days=1)
+    week_delta = datetime.timedelta(days=7)
+    week_counter = 1
+    day_counter = 1
+    midsemBreakWeek = 9 # Mid sem break occurs after this week.
+
+    # assigns a week number to each date.
+    while week_counter <= 12:
+        while day_counter <= 7:
+            week_day[current_date] = week_counter
+            day_counter += 1
+            current_date = current_date + day_delta
+        week_counter += 1
+        # If we enter the week of the midsem break, skip a week.
+        if week_counter == midsemBreakWeek + 1:
+            current_date = current_date + week_delta
+        day_counter = 1
+
+    # The user input stage.
     user_dates_input = "default"
     print("Would you like to download lectures from specific weeks or since a particular date?")
     while user_dates_input == "default":
@@ -235,26 +223,8 @@ def get_weeks_to_download():
             user_dates_input = "default" # Go back to top of while loop.
     return dates_list
 
-dates_list = get_weeks_to_download()
 
-
-# Start Chrome instance
-print("Starting up Chrome instance")
-chrome_options = Options()
-window_size = settings.get('window_size', '1600,900')
-chrome_options.add_argument('--window-size=' + window_size)
-if settings['hide_window']:
-    print('Running in headless (hidden window) mode.')
-    chrome_options.add_argument('--headless')
-    chrome_options.add_argument('--disable-gpu')  # TODO Remove this one day.
-driver = webdriver.Chrome('ChromeDriver/chromedriver 2.31', chrome_options=chrome_options)
-
-
-# login process
-print("Starting login process")
-driver.get("https://app.lms.unimelb.edu.au")
-
-def sign_in():
+def sign_in(driver):
     user_field = driver.find_element_by_css_selector("input[name=user_id]")
     if settings['username'] is None:
         settings['username'] = input("Enter your username: ")
@@ -268,7 +238,7 @@ def sign_in():
 
 
 @retry_until_result('Waiting for course list to load...')
-def get_course_links():
+def get_course_links(driver):
     # list items in list class "courseListing"
     course_links = None
     try:
@@ -324,14 +294,6 @@ def getSubjectList(course_links):
     # They loaded! Don't recurse, return the list instead :)
     return subject_list
 
-sign_in()
-print("Building list of subjects")
-driver.refresh()
-
-course_listing = get_course_links()
-subject_list = getSubjectList(course_listing)
-numSubjects = len(subject_list)
-
 
 def determine_subjects_to_download(subject_list):
     # Print candidate subjects for download.
@@ -349,53 +311,44 @@ def determine_subjects_to_download(subject_list):
     else:
         print("Using " + settings['subject_choices'])
         user_choice = settings['subject_choices']
-    # For each chosen subj number, check if it is subj_num in subject list.
+    # For each chosen subject number, check if it is subj_num in subject list.
     # If not, skip it. If yes, add it to subjects to be downloaded.
     if not user_choice == "":
         chosen_subj_nums = user_choice.split(",")
         for item in chosen_subj_nums:
-            for subj in subject_list:
-                if not item == str(subj[3]):
-                    skipped_subjects.append(subj)
+            for subject in subject_list:
+                if not item == str(subject[3]):
+                    skipped_subjects.append(subject)
                 else:
-                    subjects_to_download.append(subj)
+                    subjects_to_download.append(subject)
     else:
-        for subj in subject_list:
-            subjects_to_download.append(subj)
+        for subject in subject_list:
+            subjects_to_download.append(subject)
     return subjects_to_download
 
-subjects_to_download = determine_subjects_to_download(subject_list)
 
-print("Subjects to be downloaded:")
-for item in subjects_to_download:
-    # print subject code: subject title
-    print(item[0] + ": " + item[1])
+def download_lectures_for_subject(driver, subject, downloaded, skipped, current_year, week_day, dates_list, download_mode, video_folder):
+    print("\nNow working on " + subject[0] + ": " + subject[1])
 
-# for each subject, navigate through site and download lectures
-for subj in subjects_to_download:
-    # print status
-    print("\nNow working on " + subj[0] + ": " + subj[1])
-    lecture_tab_strings = ["Lectures", "lectures", "Lecture capture", "Recordings", "recordings", "Capture", "capture"]
+    # Go to subject page and find Lecture Recordings page.
+    driver.get(subject[2])
 
-    # go to subject page and find Lecture Recordings page
-    driver.get(subj[2])
-
-    # If the window is too small we need to make the sidebar visisble.
+    # If the window is too small we need to make the sidebar visible.
     try:
-        recs_page = search_link_text(driver, lecture_tab_strings)
+        recs_page = search_link_text(driver, LECTURE_TAB_STRINGS)
         recs_page.click()
     except:
         pullers = driver.find_elements_by_id("menuPuller")
         for i in pullers:
             i.click()
         time.sleep(1)  # TODO this is very falky.
-        recs_page = search_link_text(driver, lecture_tab_strings)
+        recs_page = search_link_text(driver, LECTURE_TAB_STRINGS)
         recs_page.click()
 
     # if no recordings page found, skip to next subject
     if recs_page is None:
         print("No recordings page found, skipping to next subject")
-        continue
+        return
 
     # sometimes sidebar links goes directly to echo page, sometimes there's a page in between
     # if there's no iframe, it's on the page in between
@@ -429,7 +382,7 @@ for subj in subjects_to_download:
             time.sleep(0.5)
 
     # setup for recordings
-    subject_code = subj[0]
+    subject_code = subject[0]
     multiple_lectures = False
     lectures_list = []
     to_download = [] # will be appended with [first_link, subject_code, week_num, lec_num, date]
@@ -500,7 +453,7 @@ for subj in subjects_to_download:
     for item in lectures_list:
         filename = item[1] + " Week " + str(item[2]).zfill(2) + " Lecture"
         # Getting the subject folder in which to put the lecture.
-        subjectFolder = getSubjectFolder(item[1]) # Item 1 is subject_code.
+        subjectFolder = getSubjectFolder(item[1], video_folder) # Item 1 is subject_code.
         # if multiple_lectures == True: Don't worry about this, wasn't implemented properly in the first place.
         # This line would determine whether to append the lecture number to the file name.
         filename = filename + " " + str(item[3])
@@ -558,6 +511,7 @@ for subj in subjects_to_download:
             sizeLocal = statinfo.st_size
 
             # Add to download list with note that it was incomplete.
+            # TODO Unify the two bits of code to do with downloading / progress.
             if sizeWeb > sizeLocal:
                 item.append("Incomplete file (%0.1f/%0.1f MiB)." % (
                     sizeLocal / 1024 / 1024,
@@ -568,7 +522,7 @@ for subj in subjects_to_download:
             # Otherwise the file must be fully downloaded.
             else:
                 item.append("File already exists on disk (fully downloaded).")
-                skipped_lectures.append(item)
+                skipped.append(item)
                 print("Skipping " + item[5] + ": " + item[7])
 
         # Dealing with other cases.
@@ -582,7 +536,7 @@ for subj in subjects_to_download:
             # If file already exists and is fully completed. Shouldn't really get to this case (caught above).
             elif os.path.isfile(item[6]):
                 item.append("File already exists")
-            skipped_lectures.append(item)
+            skipped.append(item)
             print("Skipping " + item[5] + ": " + item[7])
 
     # print list of lectures to be downloaded
@@ -634,33 +588,88 @@ for subj in subjects_to_download:
                     output.write(chunk)
 
         print("Completed! Going to next file!")
-        downloaded_lectures.append(link)
+        downloaded.append(link)
 
     # when finished with subject
-    print("Finished downloading files for", subj[1])
+    print("Finished downloading files for", subject[1])
 
-# when finished with all subjects
-print("All done!")
 
-# [first_link, subject_code, week_num, lec_num, date]
-# list downloaded lectures
-if len(downloaded_lectures) > 0:
-    if len(downloaded_lectures) == 1:
-        print("Downloaded 1 lecture:")
-    else:
-        print("Downloaded " + str(len(downloaded_lectures)) + " lectures:")
-    for item in downloaded_lectures:
-        print(item[5])
 
-# list skipped lectures
-if len(skipped_lectures) > 0:
-    if len(skipped_lectures) == 1:
-        print("Skipped 1 lecture:")
-    else:
-        print("Skipped " + str(len(skipped_lectures)) + " lectures:")
-    for item in skipped_lectures:
-        print(item[5] + ": " + item[7])
 
-driver.quit()
+def main():
+    # Setup download folders
+    home_dir = os.path.expanduser("~")
+    video_folder = os.path.join(home_dir, "Dropbox/uni2017")
+    audio_folder = video_folder
 
-print("\nDone!\n")
+    print("Welcome to", argv[0])
+    video_folder = check_video_folder(video_folder)
+
+    current_year = datetime.datetime.now().year
+    week_day = {}
+    dates_list = get_weeks_to_download(current_year, week_day)
+
+    download_mode = get_download_mode()
+
+    # Start Chrome instance
+    print("Starting up Chrome instance")
+    chrome_options = Options()
+    window_size = settings.get('window_size', '1600,900')
+    chrome_options.add_argument('--window-size=' + window_size)
+    if settings['hide_window']:
+        print('Running in headless (hidden window) mode.')
+        chrome_options.add_argument('--headless')
+        chrome_options.add_argument('--disable-gpu')  # TODO Remove this one day.
+    driver = webdriver.Chrome('ChromeDriver/chromedriver 2.31', chrome_options=chrome_options)
+
+    # Login
+    print("Starting login process")
+    driver.get("https://app.lms.unimelb.edu.au")
+    sign_in(driver)
+    driver.refresh()
+    print("Building list of subjects")
+
+    course_listing = get_course_links(driver)
+    subject_list = getSubjectList(course_listing)
+    numSubjects = len(subject_list)
+
+    subjects_to_download = determine_subjects_to_download(subject_list)
+    print("Subjects to be downloaded:")
+    for item in subjects_to_download:
+        # print subject code: subject title
+        print(item[0] + ": " + item[1])
+
+    # Track which lectures we downloaded and which we skipped.
+    downloaded = []
+    skipped = []
+
+    for subject in subjects_to_download:
+        download_lectures_for_subject(driver, subject, downloaded, skipped, current_year, week_day, dates_list, download_mode, video_folder)
+
+    # Done, close the browser.
+    print("All done!")
+    driver.quit()
+
+    # [first_link, subject_code, week_num, lec_num, date]
+    # List the lectures that we downloaded and those we skipped.
+    if len(downloaded) > 0:
+        if len(downloaded) == 1:
+            print("Downloaded 1 lecture:")
+        else:
+            print("Downloaded " + str(len(downloaded)) + " lectures:")
+        for item in downloaded:
+            print(item[5])
+
+    if len(skipped) > 0:
+        if len(skipped) == 1:
+            print("Skipped 1 lecture:")
+        else:
+            print("Skipped " + str(len(skipped)) + " lectures:")
+        for item in skipped:
+            print(item[5] + ": " + item[7])
+
+    print("\nDone!\n")
+
+
+if __name__ == '__main__':
+    main()
