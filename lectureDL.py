@@ -45,6 +45,7 @@ from selenium.common.exceptions import (
 )
 
 import datetime
+import functools
 import getpass
 import os.path
 import time
@@ -53,9 +54,11 @@ import urllib
 from collections import defaultdict
 from os import listdir
 from os import stat
+from queue import Queue
 from sys import argv
 from sys import exit
 from sys import stderr
+from threading import Thread
 from util import (
     retry_until_result,
     reporthook,
@@ -346,7 +349,7 @@ def download_partial(dl_link, output_name, pretty_name, sizeLocal, sizeWeb):
     f.close()
 
 
-def download_lectures_for_subject(driver, subject, downloaded, skipped, current_year, week_day, dates_list, download_mode, video_folder):
+def download_lectures_for_subject(driver, subject, downloaded, skipped, current_year, week_day, dates_list, download_mode, video_folder, q):
     print("\nNow working on " + subject[0] + ": " + subject[1])
 
     # Go to subject page and find Lecture Recordings page.
@@ -588,20 +591,29 @@ def download_lectures_for_subject(driver, subject, downloaded, skipped, current_
                 time.sleep(0.5)
 
         # Easy to deal with full download, just use urlretrieve. reporthook gives a progress bar.
+
         if partial == False:
-            download_full(dl_link, link[6])
+            dl_func = functools.partial(download_full, dl_link, link[6])
         # This handles a partially downloaded file.
         else:
-            download_partial(dl_link, link[6], link[5], partial[0], partial[1])
+            dl_func = functools.partial(download_partial, dl_link, link[6], link[5], partial[0], partial[1])
 
-        print("Completed! Going to next file!")
+        print("Queued! Going to next file!")
         downloaded.append(link)
+        q.put(dl_func)
 
     # when finished with subject
     print("Finished downloading files for", subject[1])
 
 
-
+def consume_dl_queue(q):
+    # This will just keep consuming an item from the queue and downloading it
+    # until the program ends. get() blocks if there isn't an item in the queue.
+    while True:
+        dl_func = q.get()
+        res = dl_func()
+        if res is False:
+            break
 
 def main():
     # Setup download folders
@@ -650,9 +662,16 @@ def main():
     downloaded = []
     skipped = []
 
+    q = Queue()
+    t = Thread(target=consume_dl_queue, args=(q,))
+    t.start()
     for subject in subjects_to_download:
-        download_lectures_for_subject(driver, subject, downloaded, skipped, current_year, week_day, dates_list, download_mode, video_folder)
+        download_lectures_for_subject(driver, subject, downloaded, skipped, current_year, week_day, dates_list, download_mode, video_folder, q)
 
+    # Let the thread know that we're done.
+    q.put(lambda: False)
+    # Wait for all the downloads to complete.
+    t.join()
     # Done, close the browser.
     print("All done!")
     driver.quit()
