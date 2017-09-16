@@ -1,6 +1,8 @@
 import sys
 import time
 
+from contextlib import suppress
+
 def retry_until_result(wait_message, delay=0.25, max_retries=10):
     ''' Decorator to retry a function until it doesn't return None.
     As such it obviously relies on the function returning None on failure.
@@ -10,15 +12,16 @@ def retry_until_result(wait_message, delay=0.25, max_retries=10):
         def wrapper(*args, **kwargs):
             retries = 0
             while True:
-                if retries >= max_retries:
-                    raise RuntimeError('Max retries exceeded!')
-                retries += 1
-                result = function(*args, **kwargs)
-                if result is None:
-                    time.sleep(delay)
-                    print(wait_message)
-                    continue
-                return result
+                with suppress(Exception):
+                    if retries >= max_retries:
+                        raise RuntimeError('Max retries exceeded!')
+                    retries += 1
+                    result = function(*args, **kwargs)
+                    if result is None:
+                        time.sleep(delay)
+                        print(wait_message)
+                        continue
+                    return result
         return wrapper
     return actual_decorator
 
