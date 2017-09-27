@@ -1,1 +1,1 @@
-settings_tutoring.py
+settings_personal.py

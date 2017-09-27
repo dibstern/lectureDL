@@ -71,6 +71,10 @@ try:
 except ImportError:
     settings = defaultdict(lambda: None)
 
+if len(argv) > 1:
+    # For example if the user passed --no-settings or --raw.
+    settings = defaultdict(lambda: None)
+
 LECTURE_TAB_STRINGS = ["Lectures", "lectures", "Lecture capture", "Recordings", "recordings", "Capture", "capture"]
 lectureFolderName = "lectures"
 
@@ -363,7 +367,7 @@ def download_lectures_for_subject(driver, subject, downloaded, skipped, current_
         pullers = driver.find_elements_by_id("menuPuller")
         for i in pullers:
             i.click()
-        time.sleep(1)  # TODO this is very falky.
+        time.sleep(1)  # TODO this is very flaky.
         recs_page = search_link_text(driver, LECTURE_TAB_STRINGS)
         recs_page.click()
 
@@ -417,12 +421,10 @@ def download_lectures_for_subject(driver, subject, downloaded, skipped, current_
     for item in recs_list:
         # click on each recording to get different download links
         date_div = item.find_element_by_css_selector("div.echo-date")
-
-        # Deals with error where the next element can't be selected if it isn't literally visible.
-        # Weird behaviour, but the solution is to catch the error and tab downwards.
+        time.sleep(1)
         try:
             date_div.click()
-        except ElementNotVisibleException:
+        except:
             actions = webdriver.ActionChains(driver)
             actions.move_to_element(date_div);
             actions.click()
@@ -668,13 +670,12 @@ def main():
     for subject in subjects_to_download:
         download_lectures_for_subject(driver, subject, downloaded, skipped, current_year, week_day, dates_list, download_mode, video_folder, q)
 
+    print("All downloads queued! Waiting for downloads to finish.")
+    driver.quit()
     # Let the thread know that we're done.
     q.put(lambda: False)
     # Wait for all the downloads to complete.
     t.join()
-    # Done, close the browser.
-    print("All done!")
-    driver.quit()
 
     # [first_link, subject_code, week_num, lec_num, date]
     # List the lectures that we downloaded and those we skipped.

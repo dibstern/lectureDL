@@ -6,7 +6,7 @@ from settings_base import _settings_base
 settings = {
     'username': 'dsporteous',
     'password': os.environ['UNIMELBPASSTUTOR'],
-    'date_range': '3-12',
+    'date_range': '9-12',
 }
 
 # Merge settings_base and settings.
