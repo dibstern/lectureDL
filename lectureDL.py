@@ -49,6 +49,7 @@
 #       - getSubjects()         Takes the list of subjects, returns only those
 #                               selected by the user.
 # (6) Switched to f-strings to improve clarity.
+# (7) Other unlisted changes.
 #
 # TODO:
 # Create Subject() Class
@@ -229,7 +230,7 @@ def get_weeks_to_download(current_year, week_day):
         # Automatically set the week range if specified in the settings.
         if settings['update_lower_week']:
             lower_week_bound = (datetime.datetime.today() - start_week0).days // 7
-            settings['date_range'] = str(lower_week_bound) + '-12'
+            settings['date_range'] =  f"{lower_week_bound}-12"
 
         # Read in the date range if none was given in the settings.
         if settings['date_range'] is None:
@@ -492,7 +493,7 @@ def download_lectures_for_subject(driver, subject, downloaded, skipped,
         # convert string into datetime.datetime object
         # date is formatted like "August 02 3:20 PM" but I want "August 02 2016"
         # so I need to get rid of time and add year
-        date_string = " ".join(date_div.text.split(" ")[:-2]) + " " + str(current_year)
+        date_string = " ".join(date_div.text.split(" ")[:-2]) + f" {current_year}"
         try:
             date = datetime.datetime.strptime(date_string, "%d %B %Y")
         except ValueError:

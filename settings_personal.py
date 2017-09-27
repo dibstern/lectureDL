@@ -9,7 +9,6 @@ settings = {
     'date_range': '1-12',
     'lecture_subfolder_name': 'Recordings',
     'uni_location': 'Dropbox/University/2017S2',
-    # 'subject_folders': '',
     'subject_folders': {
         'SWEN30006': 'SWEN30006 - SMD',
         'COMP30020': 'COMP30020 - DP',
